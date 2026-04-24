@@ -1,98 +1,149 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React from "react";
+import {
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+// to do - important - research how to implement push notifications for real-time alerts on critical sensor readings (e.g., high CO2 levels, low soil moisture) using Firebase Cloud Messaging or Expo Notifications API
+// to do - important - implement user authentication with Firebase Authentication to allow users to securely access their data and settings across devices
+// to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function App() {
+  const router = useRouter(); // used for navigation between screens
+
+  //function to handle the button to LiveData screen
+  const handleLiveDataPress = () => {
+    //navigating to LiveData screen
+    console.log("Navigating to Live Data screen...");
+    router.push("/live_data");
+  };
+
+  //function to handle the button to History screen
+  const handleHistoryPress = () => {
+    console.log("Navigating to History screen...");
+    router.push("/history_chart");
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      {/* Header Section */}
+      <View style={styles.headerContainer}>
+        <MaterialCommunityIcons
+          name="mushroom"
+          size={40}
+          color="#10B981"
+          style={styles.icon}
+        />
+        <Text style={styles.title}>MushroomMonitor</Text>
+      </View>
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+      {/* buttons section */}
+      <View style={styles.buttonContainer}>
+        {/* live data */}
+        <TouchableOpacity
+          style={[styles.button, styles.liveButton]}
+          activeOpacity={0.8}
+          onPress={handleLiveDataPress}
+        >
+          <MaterialCommunityIcons
+            name="access-point"
+            size={32}
+            color="#FFFFFF"
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+          <View style={styles.buttonTextContainer}>
+            <Text style={styles.buttonTitle}>Live Data</Text>
+            <Text style={styles.buttonSubtitle}>Real-time sensor readings</Text>
+          </View>
+        </TouchableOpacity>
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        {/* history chart */}
+        <TouchableOpacity
+          style={[styles.button, styles.historyButton]}
+          activeOpacity={0.8}
+          onPress={handleHistoryPress}
+        >
+          <MaterialCommunityIcons
+            name="chart-bell-curve-cumulative"
+            size={32}
+            color="#FFFFFF"
+          />
+          <View style={styles.buttonTextContainer}>
+            <Text style={styles.buttonTitle}>History Charts</Text>
+            <Text style={styles.buttonSubtitle}>Past data visualization</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  headerContainer: {
+    alignItems: "center",
+    marginBottom: 60,
+    paddingHorizontal: 20,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+  icon: {
+    marginBottom: 10,
   },
   title: {
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
-  code: {
-    textTransform: 'uppercase',
+  buttonContainer: {
+    paddingHorizontal: 20,
+    gap: 20,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  button: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 24,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  liveButton: {
+    backgroundColor: "#10B981",
+  },
+  historyButton: {
+    backgroundColor: "#3B82F6",
+  },
+  buttonTextContainer: {
+    marginLeft: 20,
+  },
+  buttonTitle: {
+    color: "#FFFFFF",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  buttonSubtitle: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 14,
   },
 });

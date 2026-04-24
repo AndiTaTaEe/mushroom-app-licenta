@@ -3,10 +3,14 @@
 # dependencies
 node_modules/
 
+# env variables
+.env
+
 # Expo
 .expo/
 dist/
 web-build/
+example/
 expo-env.d.ts
 
 # Native
