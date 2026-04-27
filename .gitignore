@@ -6,6 +6,10 @@ node_modules/
 # env variables
 .env
 
+# firebase security keys
+google-services.json
+licenta-rpi-mushroom-firebase-adminsdk-fbsvc-612be76443.json
+
 # Expo
 .expo/
 dist/

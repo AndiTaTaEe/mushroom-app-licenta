@@ -1,7 +1,8 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -9,16 +10,132 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+// imports for push notification implementation
+import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
+
+// firebase imports for sending push notification token to the database
+import { ref, set } from "firebase/database";
+import { db } from "../config/firebaseConfig";
 
 // to do - important - research how to implement push notifications for real-time alerts on critical sensor readings (e.g., high CO2 levels, low soil moisture) using Firebase Cloud Messaging or Expo Notifications API
 // to do - important - implement user authentication with Firebase Authentication to allow users to securely access their data and settings across devices
 // to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
+// handler for determining how my app handles incoming notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// function to handle error during push notification registration
+function handleRegistrationError(errorMessage: string) {
+  alert(errorMessage);
+  throw new Error(errorMessage);
+}
+
+async function registerForPushNotificationsAsync() {
+  // checking if the OS of the physical device is android
+  // if it is, we need to create a notification channel for the push notifications to work properly on android devices
+  // this is required because since android 8.0, every single notification must belong to a channel, otherwise the phone will block it silently
+  // on ios, the channel is created automatically by the system
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C",
+    });
+  }
+  // checking if the app is running on a physical device
+  if (Device.isDevice) {
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync(); // checking if the app already has permissions to send notifications
+    let finalStatus = existingStatus;
+    // if the app doesnt have permissions, we need to ask the user for permissions to send notifications
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    // if the user didnt give permissions, we need to handle the error and stop registration process
+    if (finalStatus !== "granted") {
+      handleRegistrationError(
+        "Permission not granted to get push token for push notification!",
+      );
+      return;
+    }
+    // if we have permissions => get the push token
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId;
+    if (!projectId) {
+      handleRegistrationError(
+        "Project ID not found in Expo Constants. Please ensure it's set in app.json or eas.json.",
+      );
+    }
+    // fetching the push token
+    try {
+      const pushTokenString = (
+        await Notifications.getExpoPushTokenAsync({
+          projectId,
+        })
+      ).data;
+      console.log("Push token obtained successfully: ", pushTokenString);
+      return pushTokenString;
+    } catch (error: unknown) {
+      handleRegistrationError(
+        `Failed to get push token: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  } else {
+    handleRegistrationError("Must use physical device for Push Notifications");
+  }
+}
+
 export default function App() {
   const router = useRouter(); // used for navigation between screens
+  const [expoPushToken, setExpoPushToken] = useState("");
+
+  // function to register for push notifications and get the token
+  useEffect(() => {
+    console.log("Checking for push notification permissions...");
+
+    registerForPushNotificationsAsync()
+      .then((token) => {
+        if (token) {
+          setExpoPushToken(token);
+          console.log("Push notification token obtained:", token);
+
+          // saving the token to Firebase Realtime db into 'admin' folder
+          const tokenRef = ref(db, "admin/push_token");
+          set(tokenRef, token)
+            .then(() =>
+              console.log(
+                "Push token saved to Firebase Realtime DB in 'admin/push_token'",
+              ),
+            )
+            .catch((error) =>
+              console.error(
+                "FIREBASE_ERROR: Couldn't save the token in 'admin/push_token': ",
+                error,
+              ),
+            );
+        } else {
+          console.log("Token undefined. Are you on a physical phone?");
+        }
+      })
+      .catch((error) =>
+        console.error(
+          "Failed to run registration for push notifications: ",
+          error,
+        ),
+      );
+  }, []);
 
   //function to handle the button to LiveData screen
   const handleLiveDataPress = () => {
