@@ -17,7 +17,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anditataee.mushroomapp",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -40,6 +42,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "9d8e6dff-9d6f-4554-b65f-5be4f34b8a99"
+      }
     }
   }
 }
