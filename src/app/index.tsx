@@ -19,7 +19,10 @@ import * as Notifications from "expo-notifications";
 import { ref, set } from "firebase/database";
 import { db } from "../config/firebaseConfig";
 
-// to do - important - research how to implement push notifications for real-time alerts on critical sensor readings (e.g., high CO2 levels, low soil moisture) using Firebase Cloud Messaging or Expo Notifications API
+// firebase imports for authentication
+import { signOut } from "firebase/auth";
+import { auth } from "../config/firebaseConfig";
+
 // to do - important - implement user authentication with Firebase Authentication to allow users to securely access their data and settings across devices
 // to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
@@ -150,12 +153,29 @@ export default function App() {
     router.push("/history_chart");
   };
 
+  // function to handle user logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      console.log("User logged out successfully");
+    } catch (error) {
+      console.error("Error logging out: ", error);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
       {/* Header Section */}
       <View style={styles.headerContainer}>
+        <TouchableOpacity
+          style={{ position: "absolute", top: -80, right: 20 }}
+          onPress={handleLogout}
+        >
+          <MaterialCommunityIcons name="logout" size={28} color="EF4444" />
+        </TouchableOpacity>
+
         <MaterialCommunityIcons
           name="mushroom"
           size={40}
