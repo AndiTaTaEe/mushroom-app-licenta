@@ -27,6 +27,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false); // state to show loading indicator during auth
+  const [showPassword, setShowPassword] = useState(false); // state to toggle password visibility
 
   // function to handle auth logic for login and signup
   const handleAuth = async () => {
@@ -92,6 +93,7 @@ export default function AuthScreen() {
 
         {/* input form section*/}
         <View style={styles.formContainer}>
+          {/* email input */}
           <View style={styles.inputWrapper}>
             <MaterialCommunityIcons
               name="email-outline"
@@ -99,6 +101,7 @@ export default function AuthScreen() {
               color="#94A3B8"
               style={styles.inputIcon}
             />
+
             <TextInput
               style={styles.input}
               placeholder="Email address"
@@ -109,7 +112,7 @@ export default function AuthScreen() {
               onChangeText={setEmail}
             />
           </View>
-
+          {/* password input */}
           <View style={styles.inputWrapper}>
             <MaterialCommunityIcons
               name="lock-outline"
@@ -121,10 +124,21 @@ export default function AuthScreen() {
               style={styles.input}
               placeholder="Password"
               placeholderTextColor="#94A3B8"
-              secureTextEntry
+              secureTextEntry={!showPassword} // toggle password visibility
               value={password}
               onChangeText={setPassword}
             />
+            {/* eye icon to toggle password visibility */}
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={{ padding: 4 }}
+            >
+              <MaterialCommunityIcons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={24}
+                color="#94A3B8"
+              />
+            </TouchableOpacity>
           </View>
 
           {/* main auth button */}
