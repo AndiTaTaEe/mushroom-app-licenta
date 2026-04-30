@@ -1,0 +1,18 @@
+# project envs
+project_env/
+
+# python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# secrets
+.env
+licenta-rpi-mushroom-firebase-*.json
+
+# temporary files
+.lgd-*
+teste/
+*_test.py

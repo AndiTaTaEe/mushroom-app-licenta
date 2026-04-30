@@ -23,7 +23,8 @@ import { db } from "../config/firebaseConfig";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
-// to do - important - implement user authentication with Firebase Authentication to allow users to securely access their data and settings across devices
+// to do - important - VPD charts in the history screen and live data screen - important for the core functionality of the app (rpi + react native)
+// to do - slightly important - forgot my password flow for the auth screen, not a priority right now, but it would be a nice addition in the future
 // to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
 // handler for determining how my app handles incoming notifications
