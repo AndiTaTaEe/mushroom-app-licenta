@@ -22,6 +22,7 @@ interface PastReadings {
   light_level: number;
   soil_moisture_level: number;
   co2_ppm: number;
+  vpd: number;
   timestamp: string;
 }
 
@@ -43,6 +44,7 @@ export default function HistoryChartScreen() {
   const [lightLevelData, setLightLevelData] = useState<number[]>([]);
   const [soilMoistureData, setSoilMoistureData] = useState<number[]>([]);
   const [co2Data, setCo2Data] = useState<number[]>([]);
+  const [vpdData, setVpdData] = useState<number[]>([]);
 
   // state for tooltip visibility and content
   const [tempTooltip, setTempTooltip] = useState<TooltipState>({
@@ -74,6 +76,13 @@ export default function HistoryChartScreen() {
   });
 
   const [co2Tooltip, setCo2Tooltip] = useState<TooltipState>({
+    x: 0,
+    y: 0,
+    value: 0,
+    visible: false,
+  });
+
+  const [vpdTooltip, setVpdTooltip] = useState<TooltipState>({
     x: 0,
     y: 0,
     value: 0,
@@ -119,6 +128,9 @@ export default function HistoryChartScreen() {
           const co2Values = readingsArray.map((reading) =>
             Number(reading.co2_ppm.toFixed(1)),
           );
+          const vpdValues = readingsArray.map((reading) =>
+            Number(reading.vpd.toFixed(2)),
+          );
 
           setLabels(timeLabels);
           setTemperatureData(tempValues);
@@ -126,6 +138,7 @@ export default function HistoryChartScreen() {
           setLightLevelData(lightlevelValues);
           setSoilMoistureData(soilMoistureValues);
           setCo2Data(co2Values);
+          setVpdData(vpdValues);
         }
         setLoading(false);
       },
@@ -213,6 +226,41 @@ export default function HistoryChartScreen() {
           <Text style={styles.noDataText}>No historical data available</Text>
         ) : (
           <View>
+            {/* vpd values chart */}
+            <View style={styles.chartCard}>
+              <Text style={styles.chartTitle}>Past VPD values (kPa)</Text>
+              <LineChart
+                data={{
+                  labels: labels,
+                  datasets: [{ data: vpdData }],
+                }}
+                width={screenWidth - 60} // 20 padding on each side
+                height={220}
+                yAxisSuffix="kPa"
+                chartConfig={{
+                  ...chartConfig,
+                  color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#8B5CF6" },
+                }}
+                bezier // for smooth curves
+                style={styles.chartStyle}
+                onDataPointClick={(data) => {
+                  setVpdTooltip({
+                    x: data.x,
+                    y: data.y,
+                    value: data.value,
+                    visible: true,
+                  });
+                  //hide the others tooltip for no overlapping
+                  setTempTooltip((prev) => ({ ...prev, visible: false }));
+                  setHumTooltip((prev) => ({ ...prev, visible: false }));
+                  setLightTooltip((prev) => ({ ...prev, visible: false }));
+                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
+                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));  
+                }}
+                decorator={() => renderTooltip(vpdTooltip, "kPa")}
+              />
+            </View>
             {/* temperature chart */}
             <View style={styles.chartCard}>
               <Text style={styles.chartTitle}>Past Temperatures (°C)</Text>
@@ -243,6 +291,7 @@ export default function HistoryChartScreen() {
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
                   setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
                 }}
                 decorator={() => renderTooltip(tempTooltip, "°C")}
               />
@@ -273,6 +322,7 @@ export default function HistoryChartScreen() {
                     visible: true,
                   });
                   //hide the other tooltip for no overlapping
+                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
                   setTempTooltip((prev) => ({ ...prev, visible: false }));
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
@@ -306,6 +356,7 @@ export default function HistoryChartScreen() {
                     visible: true,
                   });
                   //hide the other tooltip for no overlapping
+                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
                   setTempTooltip((prev) => ({ ...prev, visible: false }));
                   setHumTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
@@ -342,6 +393,7 @@ export default function HistoryChartScreen() {
                     visible: true,
                   });
                   //hide the other tooltip for no overlapping
+                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
                   setTempTooltip((prev) => ({ ...prev, visible: false }));
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setHumTooltip((prev) => ({ ...prev, visible: false }));
@@ -375,6 +427,7 @@ export default function HistoryChartScreen() {
                     visible: true,
                   });
                   //hide the other tooltip for no overlapping
+                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
                   setTempTooltip((prev) => ({ ...prev, visible: false }));
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setHumTooltip((prev) => ({ ...prev, visible: false }));

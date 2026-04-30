@@ -19,6 +19,7 @@ export default function LiveDataScreen() {
     light_level: "--",
     soil_moisture_level: "--",
     co2_ppm: "--",
+    vpd: "--",
   });
 
   // fetching sensor data from Firebase Realtime Database
@@ -38,6 +39,7 @@ export default function LiveDataScreen() {
             light_level: data.light_level?.toFixed(1) || "--",
             soil_moisture_level: data.soil_moisture_level?.toFixed(1) || "--",
             co2_ppm: data.co2_ppm?.toFixed(0) || "--",
+            vpd: data.vpd?.toFixed(2) || "--"
           });
         }
         setLoading(false);
@@ -70,6 +72,13 @@ export default function LiveDataScreen() {
         ) : (
           <View style={styles.grid}>
             {/* rendering sensor cards with sensor data */}
+            <SensorCard
+              title="VPD Level"
+              value={sensorData.vpd}
+              unit="kPa"
+              iconName="chart-line-variant"
+              iconColor="#8B5CF6"
+            />
             <SensorCard
               title="Temperature"
               value={sensorData.temperature_c}
@@ -104,7 +113,7 @@ export default function LiveDataScreen() {
               unit="ppm"
               iconName="molecule-co2"
               iconColor="#64748B"
-            />
+            />  
           </View>
         )}
       </ScrollView>
