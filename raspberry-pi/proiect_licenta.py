@@ -2,9 +2,11 @@ import adafruit_dht
 import adafruit_ads1x15.ads1115 as ADS
 import board
 import busio
+import math
 import sys
 import signal
 import time
+
 from adafruit_ads1x15.analog_in import AnalogIn 
 
 # imports for OLED display
@@ -33,6 +35,7 @@ OPTIMAL_MUSH_HUMIDITY = (80.0, 90.0) # percentage
 OPTIMAL_MUSH_LIGHT = (500.0, 1000.0) # lux 
 OPTIMAL_MUSH_CO2 = (500.0, 1000.0) # ppm 
 OPTIMAL_MUSH_SOIL_MOISTURE = (80.0, 90.0) # percentage
+OPTIMAL_VPD = (0.2, 0.4) # kPa - ideal VPD range for mushroom growth
 
 # push notification settings
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send" # expo push notification API endpoint
@@ -44,7 +47,8 @@ last_alert_times = {
     'humidity': 0,
     'light': 0,
     'co2': 0,
-    'soil_moisture': 0
+    'soil_moisture': 0,
+    'vpd': 0
 }
 
 
@@ -70,6 +74,22 @@ hw101_sensor = HW101(channel_hw101, dry_val=17636, wet_val=8008)
 
 # initalization of firebase manager
 firebase_manager = FirebaseManager()
+
+# function for VPD calculation (vapor pressure deficit) - important parameter for mushroom growth, calculated based on temperature and air humidity readings
+def calculate_vpd(temperature_c, air_humidity):
+    try:
+        # saturation vapor pressure calculation using Tetens formula
+        # SVP = 0.61078 * e^((17.27 * T) / (T + 237.3)), where T is the temp in celsius
+        svp = 0.61078 * math.exp((17.27 * temperature_c) / (temperature_c + 237.3)) # measured in kPa
+
+        # actual vapor pressure calculation based on svp and air humidity
+        avp = svp * (air_humidity / 100.0) # measured in kPa    
+
+        # vpd = svp - avp
+        return round(svp - avp, 2) # return vpd rounded to 2 decimal
+    except Exception as e:
+        print(f"Error calculating VPD: {e}")
+        return None
 
 # cleanup function to handle exit signals
 def cleanup_and_exit(code=0):
@@ -134,6 +154,7 @@ while True:
         light_level = None
         co2_ppm = None
         soil_moisture_level = None
+        vpd_value = None
 
         #block to read temperature with error handling
         try:
@@ -165,14 +186,19 @@ while True:
         except Exception as e:
             print(f"Soil moisture sensor read error: {e}")
 
+        # block to calculate VPD
+        if temperature_c is not None and humidity is not None:
+            vpd_value = calculate_vpd(temperature_c, humidity)
+
         # logic to upload readings to firebase - if all readings are valid => upload to firebase, if any reading is invalid => no uploading to firebase and display error 
-        if all(value is not None for value in [temperature_c, humidity, light_level, co2_ppm, soil_moisture_level]):
+        if all(value is not None for value in [temperature_c, humidity, light_level, co2_ppm, soil_moisture_level, vpd_value]):
             data = {
                 'temperature_c': temperature_c,
                 'humidity': humidity,
                 'light_level': light_level,
                 'co2_ppm': co2_ppm,
-                'soil_moisture_level': soil_moisture_level
+                'soil_moisture_level': soil_moisture_level,
+                'vpd': vpd_value
             }
             firebase_manager.upload_data(data)     
         
@@ -183,8 +209,9 @@ while True:
             draw.text((0, 32), f"CO2:  {int(co2_ppm)} ppm" if co2_ppm is not None else "CO2:  ERR", fill="white")
             draw.text((0, 48), f"Soil: {soil_moisture_level:.1f}%" if soil_moisture_level is not None else "Soil: ERR", fill="white")
             draw.text((70, 0), f"Light: {light_level:.1f} lx" if light_level is not None else "Light: ERR", fill="white")
+            draw.text((70, 16), f"VPD: {vpd_value:.2f} kPa" if vpd_value is not None else "VPD: ERR", fill="white")
 
-        print(f"Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%")
+        print(f"Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%, VPD: {vpd_value:.2f} kPa")
 
         if temperature_c is not None and (temperature_c <= OPTIMAL_MUSH_TEMP[0] or temperature_c >= OPTIMAL_MUSH_TEMP[1]):
             send_push_notification("temp", "Temperature Warning", f'Temperature is {temperature_c:.1f}°C (Outside optimal range)', current_time)
@@ -196,6 +223,8 @@ while True:
             send_push_notification("co2", "CO2 Warning", f'CO2 level is {int(co2_ppm)} ppm (Outside optimal range)', current_time)
         if soil_moisture_level is not None and (soil_moisture_level <= OPTIMAL_MUSH_SOIL_MOISTURE[0] or soil_moisture_level >= OPTIMAL_MUSH_SOIL_MOISTURE[1]):
             send_push_notification("soil_moisture", "Soil Moisture Warning", f'Soil moisture level is {soil_moisture_level:.1f}% (Outside optimal range)', current_time)
+        if vpd_value is not None and (vpd_value <= OPTIMAL_VPD[0] or vpd_value >= OPTIMAL_VPD[1]):
+            send_push_notification("vpd", "VPD Warning", f'VPD is {vpd_value:.2f} kPa (Outside optimal range)', current_time)
 
     except Exception as error:
         print(f"Error in main loop: {error}")
