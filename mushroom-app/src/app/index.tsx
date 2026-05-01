@@ -170,7 +170,7 @@ export default function App() {
       {/* Header Section */}
       <View style={styles.headerContainer}>
         <TouchableOpacity
-          style={{ position: "absolute", top: -80, right: 20 }}
+          style={styles.logoutButton}
           onPress={handleLogout}
         >
           <MaterialCommunityIcons name="logout" size={28} color="EF4444" />
@@ -282,5 +282,10 @@ const styles = StyleSheet.create({
   buttonSubtitle: {
     color: "rgba(255, 255, 255, 0.8)",
     fontSize: 14,
+  },
+  logoutButton: {
+    position: "absolute", 
+    top: -80, 
+    right: 20,
   },
 });
