@@ -1,4 +1,4 @@
-import { limitToLast, onValue, query, ref } from "firebase/database";
+import { limitToLast, onValue, query, ref, get } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -6,12 +6,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { LineChart } from "react-native-chart-kit";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { G, Rect, Text as SvgText } from "react-native-svg";
 import { db } from "../config/firebaseConfig";
+
+// imports for exporting the historical data to a CSV file
+import {File, Paths} from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import {Alert} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // defining the screen width for the chart, to make it responsive
 const screenWidth = Dimensions.get("window").width;
@@ -205,6 +212,61 @@ export default function HistoryChartScreen() {
         </SvgText>
       </G>
     );
+  };
+
+   // function for exporting the historical data to a CSV file 
+    const exportToCSV = async () => {
+      try {
+      // adding a loading state 
+      setLoading(true);
+
+      // fetching up to 1000 past readings to include in the CSV export
+      const dataRef = query(ref(db, "proiect-licenta/past_readings"), limitToLast(1000));
+      const snapshot = await get(dataRef);
+
+      if (!snapshot.exists()) {
+        Alert.alert("No data to export", "There are no historical readings available to export.");
+        return;
+      }
+
+      // creating the csv header row
+      let csvString = "Timestamp,Temperature (C),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n";
+
+      // iterating through the created snapshot to build the rows
+      snapshot.forEach((childSnapshot) => {
+        const row = childSnapshot.val();
+        
+        // formatting the timestamp into a readable format; we create a fallback in case the timestamp is missing from the Firebase or invalid
+        const dateStr = row.timestamp ? new Date(row.timestamp).toLocaleDateString() + " " + new Date(row.timestamp).toTimeString() : "Unknown Timestamp"; // the timestamp in firebase is stored as date + time, so we convert it accordingly
+        csvString += `${dateStr},${row.temperature_c},${row.humidity},${row.light_level},${row.soil_moisture_level},${row.co2_ppm},${row.vpd}\n`;
+      });
+
+      // defining the file path for the CSV file
+      const fileName = `Mushroom_Farm_Data_${new Date().getTime()}.csv`;
+      const file = new File(Paths.document, fileName);
+
+      // writing the CSV string to the file
+      file.write(csvString);
+
+      // sharing the file using the device's sharing options
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        // if sharing is available, we share the file
+        await Sharing.shareAsync(file.uri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export mushroom farm data",
+          UTI: "public.comma-separated-values-text"
+        });
+      } else {
+        Alert.alert("Error sharing file", "Sharing is not available on this device.");
+      }
+
+    } catch (error) {
+      console.error("CSV export error: ", error);
+      Alert.alert("Error exporting data", "An error occurred while exporting the data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -436,6 +498,13 @@ export default function HistoryChartScreen() {
                 decorator={() => renderTooltip(co2Tooltip, "")}
               />
             </View>
+            {/* export data to CSV button */}
+            <TouchableOpacity style={styles.buttonExport} onPress={exportToCSV}>
+              <MaterialCommunityIcons name="file-export-outline" size={24} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.buttonExportText}>
+                Export Data to CSV
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -503,4 +572,19 @@ const styles = StyleSheet.create({
   chartStyle: {
     borderRadius: 16,
   },
+  buttonExport: {
+    backgroundColor: "#10B981",
+    
+    padding: 15,
+    borderRadius: 8,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  buttonExportText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+  }
 });
