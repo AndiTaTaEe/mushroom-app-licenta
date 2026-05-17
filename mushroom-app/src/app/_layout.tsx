@@ -25,8 +25,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (initializing) return;
 
-    // check if the user is currently on the auth screen
-    const inAuthGroup = String(segments[0]) === "auth";
+    // screens that unauthenticated users can access (auth screen and forgot_password)
+    const publicScreens = ["auth", "forgot_password"];
+
+    // check if the user is currently on the public screens
+    const inAuthGroup = publicScreens.includes(String(segments[0]));
 
     if (!user && !inAuthGroup) {
       // if the user is not logged in and trying to access a secure screen -> navigate the user to the auth screen
@@ -61,6 +64,7 @@ export default function RootLayout() {
       <Stack.Screen name="live_data" />
       <Stack.Screen name="history_chart" />
       <Stack.Screen name="auth" />
+      <Stack.Screen name="forgot_password" />
     </Stack>
   );
 }

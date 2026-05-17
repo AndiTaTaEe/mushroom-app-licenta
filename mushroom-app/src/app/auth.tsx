@@ -2,22 +2,22 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // imports for firebase authentication
 import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
@@ -71,6 +71,7 @@ export default function AuthScreen() {
       setLoading(false);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -140,6 +141,16 @@ export default function AuthScreen() {
               />
             </TouchableOpacity>
           </View>
+
+          {/* forgot password button - only shown on login screen */}
+          {isLogin && (
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={() => router.push("/forgot_password")}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          )}
 
           {/* main auth button */}
           <TouchableOpacity
@@ -222,4 +233,14 @@ const styles = StyleSheet.create({
   toggleButton: { marginTop: 24, alignItems: "center" },
   toggleText: { color: "#64748B", fontSize: 15 },
   toggleTextBold: { color: "#10B981", fontWeight: "bold" },
+  forgotPasswordButton: {
+    alignSelf: "flex-end",
+    marginBottom: 16,
+    marginRight: 4,
+  },
+  forgotPasswordText: {
+    color: "#10B981",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 });
