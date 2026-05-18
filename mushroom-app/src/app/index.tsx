@@ -23,7 +23,6 @@ import { db } from "../config/firebaseConfig";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
-// to do - slightly important - forgot my password flow for the auth screen, not a priority right now, but it would be a nice addition in the future
 // to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
 // handler for determining how my app handles incoming notifications
@@ -153,6 +152,11 @@ export default function App() {
     router.push("/history_chart");
   };
 
+  const handleSettingsPress = () => {
+    console.log("Navigating to Settings screen...");
+    router.push("/settings");
+  }
+
   // function to handle user logout
   const handleLogout = async () => {
     try {
@@ -220,6 +224,24 @@ export default function App() {
             <Text style={styles.buttonSubtitle}>Past data visualization</Text>
           </View>
         </TouchableOpacity>
+
+        {/* settings */}
+        <TouchableOpacity 
+          style={[styles.button, styles.settingsButton]}
+          activeOpacity={0.8}
+          onPress={handleSettingsPress}
+        >
+          <MaterialCommunityIcons
+            name="cog-outline"
+            size={32}
+            color="#FFFFFF"
+          />
+          <View style={styles.buttonTextContainer}>
+            <Text style={styles.buttonTitle}>Settings</Text>
+            <Text style={styles.buttonSubtitle}>Configure your preferences</Text>
+          </View>
+        </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
@@ -269,6 +291,9 @@ const styles = StyleSheet.create({
   },
   historyButton: {
     backgroundColor: "#3B82F6",
+  },
+  settingsButton: {
+    backgroundColor: "#F59E0B",
   },
   buttonTextContainer: {
     marginLeft: 20,

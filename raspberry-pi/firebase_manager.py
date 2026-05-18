@@ -14,6 +14,16 @@ class FirebaseManager:
         self.upload_interval = upload_to_firebase_interval
         self.last_upload_time = 0 # variable for tracking last upload to firebase
 
+        # predefined thresholds for the farm parameters - used when the Pi boots up, before firebase overriding them
+        self.farm_thresholds = {
+            "temperature_c": {"min": 15.0, "max": 30.0},
+            "humidity_percent": {"min": 80.0, "max": 90.0},
+            "light_lux": {"min": 500.0, "max": 1000.0},
+            "co2_ppm": {"min": 500.0, "max": 1000.0},
+            "soil_moisture_percent": {"min": 80.0, "max": 90.0},
+            "vpd_kpa": {"min": 0.2, "max": 0.4}
+        }
+
         # loading env variables
         load_dotenv()
         config_json_string = os.getenv("FIREBASE_CONFIG")
@@ -26,10 +36,39 @@ class FirebaseManager:
             cred = credentials.Certificate(config_dict)
             firebase_admin.initialize_app(cred, {'databaseURL': db_url})
             self.root_ref = db.reference('/proiect-licenta') # reference to the root of the db for this project
-            print("Firebase initialized successfully")
+
+            # attaching the listener - the pi will listen for changes in the 'farm_settings' node in firebase
+            self.settings_ref = self.root_ref.child('farm_settings')
+            self.settings_ref.listen(self._settings_listener) # background listener for changes in farm setttings
+
+            print("Firebase initialized successfully. Listening for mobile app changes in farm settings...")
         except Exception as e:
             print(f"Error initializing Firebase: {e}")
             raise
+
+    # listener function for changes in farm settings in firebase, runs automatically in the background when changes are detected 
+    def _settings_listener(self, event):
+        """
+        runs automatically in the background in response to changes in the 'farm_settings' node in firebase 
+        """
+        incoming_data = event.data
+        if incoming_data:
+            print("Mobile app update received!")
+
+            if event.path == '/': # if the entire farm_settings node is updated
+                self.farm_thresholds.update(incoming_data) # update the local farm_thresholds with the new values from firebase
+            else: 
+                key = event.path.replace('/', '') # get the key of the updated string
+                if key in self.farm_thresholds: 
+                    if isinstance(incoming_data, dict):
+                        self.farm_thresholds[key].update(incoming_data) # update the specific parameter thresholds with the new values from firebase
+                    else:
+                        self.farm_thresholds[key] = incoming_data # if the incoming data is not a dictionary, update the entire parameter thresholds with the new value from firebase
+
+            print("New thresholds successfully applied without rebooting!")
+
+    def get_thresholds(self):
+        return self.farm_thresholds # return the current farm thresholds, used in the main loop to compare with the sensor readings and trigger notifications if thresholds are exceeded
 
     def upload_data(self, data_dictionary):
         """

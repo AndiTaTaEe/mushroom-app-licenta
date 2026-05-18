@@ -65,6 +65,7 @@ export default function RootLayout() {
       <Stack.Screen name="history_chart" />
       <Stack.Screen name="auth" />
       <Stack.Screen name="forgot_password" />
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }

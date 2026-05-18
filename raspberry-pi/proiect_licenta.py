@@ -6,7 +6,6 @@ import math
 import sys
 import signal
 import time
-
 from adafruit_ads1x15.analog_in import AnalogIn 
 
 # imports for OLED display
@@ -26,16 +25,10 @@ from firebase_manager import FirebaseManager
 # imports for pushing notifications to mobile app
 import requests
 
-
 # constants
 SAMPLE_INTERVAL = 3.0 # seconds between sample
-# optimal conditions for mushroom growth: temperature between 15-30C, humidity between 80-90%, light level between 500-1000 lx, CO2 levels between 500-1000 ppm (during the fruiting phase), soil moisture between 80-90% (for the substrate) - values that can be changed based on the cultivated mushroom species and growth phase
-OPTIMAL_MUSH_TEMP = (15.0, 30.0) # celsius 
-OPTIMAL_MUSH_HUMIDITY = (80.0, 90.0) # percentage
-OPTIMAL_MUSH_LIGHT = (500.0, 1000.0) # lux 
-OPTIMAL_MUSH_CO2 = (500.0, 1000.0) # ppm 
-OPTIMAL_MUSH_SOIL_MOISTURE = (80.0, 90.0) # percentage
-OPTIMAL_VPD = (0.2, 0.4) # kPa - ideal VPD range for mushroom growth
+# info - optimal conditions for mushroom growth: temperature between 15-30C, humidity between 80-90%, light level between 500-1000 lx, CO2 levels between 500-1000 ppm (during the fruiting phase), soil moisture between 80-90% (for the substrate) - values that can be changed based on the cultivated mushroom species and growth phase
+
 
 # push notification settings
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send" # expo push notification API endpoint
@@ -213,18 +206,21 @@ while True:
 
         print(f"Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%, VPD: {vpd_value:.2f} kPa")
 
-        if temperature_c is not None and (temperature_c <= OPTIMAL_MUSH_TEMP[0] or temperature_c >= OPTIMAL_MUSH_TEMP[1]):
-            send_push_notification("temp", "Temperature Warning", f'Temperature is {temperature_c:.1f}°C (Outside optimal range)', current_time)
-        if humidity is not None and (humidity <= OPTIMAL_MUSH_HUMIDITY[0] or humidity >= OPTIMAL_MUSH_HUMIDITY[1]):
-            send_push_notification("humidity", "Humidity Warning", f'Humidity is {humidity:.1f}% (Outside optimal range)', current_time)
-        if light_level is not None and (light_level <= OPTIMAL_MUSH_LIGHT[0] or light_level >= OPTIMAL_MUSH_LIGHT[1]):
-            send_push_notification("light", "Light Warning", f'Light level is {light_level:.1f} lx (Outside optimal range)', current_time)
-        if co2_ppm is not None and (co2_ppm <= OPTIMAL_MUSH_CO2[0] or co2_ppm >= OPTIMAL_MUSH_CO2[1]):
-            send_push_notification("co2", "CO2 Warning", f'CO2 level is {int(co2_ppm)} ppm (Outside optimal range)', current_time)
-        if soil_moisture_level is not None and (soil_moisture_level <= OPTIMAL_MUSH_SOIL_MOISTURE[0] or soil_moisture_level >= OPTIMAL_MUSH_SOIL_MOISTURE[1]):
-            send_push_notification("soil_moisture", "Soil Moisture Warning", f'Soil moisture level is {soil_moisture_level:.1f}% (Outside optimal range)', current_time)
-        if vpd_value is not None and (vpd_value <= OPTIMAL_VPD[0] or vpd_value >= OPTIMAL_VPD[1]):
-            send_push_notification("vpd", "VPD Warning", f'VPD is {vpd_value:.2f} kPa (Outside optimal range)', current_time)
+        # getting the live thresholds from firebase to compare with the sensor readings and trigger notifications if thresholds are exceeded
+        thresholds = firebase_manager.get_thresholds() 
+
+        if temperature_c is not None and (temperature_c <= thresholds["temperature_c"]["min"] or temperature_c >= thresholds["temperature_c"]["max"]):
+            send_push_notification("temp", "Temperature Warning", f'Temperature is {temperature_c:.1f}°C (Outside {thresholds["temperature_c"]["min"]} - {thresholds["temperature_c"]["max"]})', current_time)
+        if humidity is not None and (humidity <= thresholds["humidity_percent"]["min"] or humidity >= thresholds["humidity_percent"]["max"]):
+            send_push_notification("humidity", "Humidity Warning", f'Humidity is {humidity:.1f}% (Outside {thresholds["humidity_percent"]["min"]} - {thresholds["humidity_percent"]["max"]})', current_time)
+        if light_level is not None and (light_level <= thresholds["light_lux"]["min"] or light_level >= thresholds["light_lux"]["max"]):
+            send_push_notification("light", "Light Warning", f'Light level is {light_level:.1f} lx (Outside {thresholds["light_lux"]["min"]} - {thresholds["light_lux"]["max"]})', current_time)
+        if co2_ppm is not None and (co2_ppm <= thresholds["co2_ppm"]["min"] or co2_ppm >= thresholds["co2_ppm"]["max"]):
+            send_push_notification("co2", "CO2 Warning", f'CO2 level is {int(co2_ppm)} ppm (Outside {thresholds["co2_ppm"]["min"]} - {thresholds["co2_ppm"]["max"]})', current_time)
+        if soil_moisture_level is not None and (soil_moisture_level <= thresholds["soil_moisture_percent"]["min"] or soil_moisture_level >= thresholds["soil_moisture_percent"]["max"]):
+            send_push_notification("soil_moisture", "Soil Moisture Warning", f'Soil moisture level is {soil_moisture_level:.1f}% (Outside {thresholds["soil_moisture_percent"]["min"]} - {thresholds["soil_moisture_percent"]["max"]})', current_time)
+        if vpd_value is not None and (vpd_value <= thresholds["vpd_kpa"]["min"] or vpd_value >= thresholds["vpd_kpa"]["max"]):
+            send_push_notification("vpd", "VPD Warning", f'VPD is {vpd_value:.2f} kPa (Outside {thresholds["vpd_kpa"]["min"]} - {thresholds["vpd_kpa"]["max"]})', current_time)
 
     except Exception as error:
         print(f"Error in main loop: {error}")
