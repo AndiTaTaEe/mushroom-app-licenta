@@ -19,9 +19,7 @@ import * as Notifications from "expo-notifications";
 import { ref, set } from "firebase/database";
 import { db } from "../config/firebaseConfig";
 
-// firebase imports for authentication
-import { signOut } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
+
 
 // to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
 
@@ -157,29 +155,12 @@ export default function App() {
     router.push("/settings");
   }
 
-  // function to handle user logout
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      console.log("User logged out successfully");
-    } catch (error) {
-      console.error("Error logging out: ", error);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
       {/* Header Section */}
       <View style={styles.headerContainer}>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <MaterialCommunityIcons name="logout" size={28} color="EF4444" />
-        </TouchableOpacity>
-
         <MaterialCommunityIcons
           name="mushroom"
           size={40}
@@ -307,10 +288,5 @@ const styles = StyleSheet.create({
   buttonSubtitle: {
     color: "rgba(255, 255, 255, 0.8)",
     fontSize: 14,
-  },
-  logoutButton: {
-    position: "absolute", 
-    top: -80, 
-    right: 20,
   },
 });
