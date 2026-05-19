@@ -19,9 +19,8 @@ import * as Notifications from "expo-notifications";
 import { ref, set } from "firebase/database";
 import { db } from "../config/firebaseConfig";
 
-
-
-// to do - not important - settings screen for customizing alert thresholds, chart preferences, and app themes
+// import for preferences context
+import { usePreferences } from "../context/preferences_context";
 
 // handler for determining how my app handles incoming notifications
 Notifications.setNotificationHandler({
@@ -100,6 +99,7 @@ async function registerForPushNotificationsAsync() {
 export default function App() {
   const router = useRouter(); // used for navigation between screens
   const [expoPushToken, setExpoPushToken] = useState("");
+  const { isDarkMode, theme } = usePreferences(); // getting the user's theme preference
 
   // function to register for push notifications and get the token
   useEffect(() => {
@@ -156,18 +156,21 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+      />
 
       {/* Header Section */}
       <View style={styles.headerContainer}>
         <MaterialCommunityIcons
           name="mushroom"
           size={40}
-          color="#10B981"
+          color={theme.primary}
           style={styles.icon}
         />
-        <Text style={styles.title}>MushroomMonitor</Text>
+        <Text style={[styles.title, { color: theme.text }]}>MushroomMonitor</Text>
       </View>
 
       {/* buttons section */}
@@ -231,7 +234,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
     justifyContent: "center",
   },
   headerContainer: {
@@ -245,7 +247,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#0F172A",
     marginBottom: 8,
     letterSpacing: 0.5,
   },

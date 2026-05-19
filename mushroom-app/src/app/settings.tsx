@@ -12,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -23,9 +24,14 @@ import { db } from "../config/firebaseConfig";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
+// import for preferences context
+import { usePreferences } from "../context/preferences_context";
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { isFahrenheit, isDarkMode, theme, toggleTempUnit, toggleDarkMode } =
+    usePreferences(); // using the preferences context to access the user's preferences and toggle functions
 
   // grouping all 12 inputs (2 min/max for each of the 6 sensor parameters) into a single object
   const [thresholds, setThresholds] = useState({
@@ -107,33 +113,49 @@ export default function SettingsScreen() {
     icon: keyof typeof MaterialCommunityIcons.glyphMap,
     unit: string,
   ) => (
-    <View style={styles.targetRow}>
+    <View style={[styles.targetRow, { borderBottomColor: theme.border }]}>
       <View style={styles.targetLabelContainer}>
         <MaterialCommunityIcons
           name={icon}
           size={20}
-          color="#64748B"
+          color={theme.icon}
           style={{ marginRight: 8 }}
         />
-        <Text style={styles.targetLabel}>
+        <Text style={[styles.targetLabel, { color: theme.text }]}>
           {label} ({unit})
         </Text>
       </View>
       <View style={styles.inputsContainer}>
         <TextInput
-          style={styles.numberInput}
+          style={[
+            styles.numberInput,
+            {
+              backgroundColor: theme.background,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
           keyboardType="numeric"
           value={thresholds[minKey]}
           onChangeText={(value) => handleInputChange(minKey, value)}
           placeholder="Min"
+          placeholderTextColor={theme.subtext}
         />
-        <Text style={styles.toText}>to</Text>
+        <Text style={[styles.toText, { color: theme.subtext }]}>to</Text>
         <TextInput
-          style={styles.numberInput}
+          style={[
+            styles.numberInput,
+            {
+              backgroundColor: theme.background,
+              borderColor: theme.border,
+              color: theme.text,
+            },
+          ]}
           keyboardType="numeric"
           value={thresholds[maxKey]}
           onChangeText={(value) => handleInputChange(maxKey, value)}
           placeholder="Max"
+          placeholderTextColor={theme.subtext}
         />
       </View>
     </View>
@@ -150,8 +172,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.background}]}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+      />
 
       {/*header section*/}
       <View style={styles.header}>
@@ -159,9 +184,9 @@ export default function SettingsScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <MaterialCommunityIcons name="arrow-left" size={28} color="#0F172A" />
+          <MaterialCommunityIcons name="arrow-left" size={28} color={theme.icon} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mushroom Farm Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Mushroom Farm Settings</Text>
         {/*for spacing the title*/}
         <View style={{ width: 28 }} />
       </View>
@@ -174,16 +199,16 @@ export default function SettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/*thresholds card*/}
-          <View style={styles.card}>
+          <View style={[styles.card, {backgroundColor: theme.card}]}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons
                 name="home-thermometer-outline"
                 size={24}
                 color="#10B981"
               />
-              <Text style={styles.cardTitle}> Farm Thresholds</Text>
+              <Text style={[styles.cardTitle, { color: theme.text }]}> Farm Thresholds</Text>
             </View>
-            <Text style={styles.cardSubtitle}>
+            <Text style={[styles.cardSubtitle, { color: theme.subtext }]}>
               Set the optimal ranges for your mushroom farm parameters. The
               Raspberry Pi will monitor these and alert you if any parameter
               goes out of range.
@@ -239,25 +264,72 @@ export default function SettingsScreen() {
           </View>
 
           {/*app preferences card for future implementations*/}
-          <View style={styles.card}>
+          <View style={[styles.card, {backgroundColor: theme.card}]}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons
                 name="cog-outline"
                 size={24}
                 color="#10B981"
               />
-              <Text style={styles.cardTitle}> App Preferences </Text>
+              <Text style={[styles.cardTitle, { color: theme.text }]}> App Preferences </Text>
+            </View>
+            {/* theme toggle */}
+            <View style={[styles.targetRow, { borderBottomColor: theme.border }]}>
+              <View style={styles.targetLabelContainer}>
+                <MaterialCommunityIcons
+                  name="theme-light-dark"
+                  size={20}
+                  color={theme.icon}
+                  style={{ marginRight: 8 }}
+                />
+                <View>
+                  <Text style={[styles.targetLabel, { color: theme.text }]}>Dark Mode</Text>
+                  <Text
+                    style={{ fontSize: 12, color: theme.subtext, marginTop: 2 }}
+                  >
+                    Toggle app dark mode
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                trackColor={{ false: "#E2E8F0", true: "#10B981" }}
+                thumbColor={"#FFFFFF"}
+                onValueChange={toggleDarkMode}
+                value={isDarkMode}
+              />
+            </View>
+            {/* temperature unit toggle */}
+            <View style={[styles.targetRow, { borderBottomWidth: 0, borderBottomColor: theme.border }]}>
+              <View style={styles.targetLabelContainer}>
+                <MaterialCommunityIcons
+                  name="temperature-celsius"
+                  size={20}
+                  color={theme.icon}
+                  style={{ marginRight: 8 }}
+                />
+                <View>
+                  <Text style={[styles.targetLabel, { color: theme.text }]}>Temperature Unit</Text>
+                  <Text
+                    style={{ fontSize: 12, color: theme.subtext, marginTop: 2 }}
+                  >
+                    Switch between °C and °F
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                trackColor={{ false: "#E2E8F0", true: "10B981" }}
+                thumbColor={"#FFFFFF"}
+                onValueChange={toggleTempUnit}
+                value={isFahrenheit}
+              />
             </View>
           </View>
 
           {/* logout button */}
-            <TouchableOpacity
-                style={styles.logoutButton}
-                onPress={handleLogout}
-              >
-                <MaterialCommunityIcons name="logout" size={24} color="#ffffff" />
-                <Text style={styles.logoutButtonText}>Logout</Text>
-              </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <MaterialCommunityIcons name="logout" size={24} color="#ffffff" />
+            <Text style={styles.logoutButtonText}>Logout</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -289,7 +361,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  cardHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   cardTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -362,5 +434,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  logoutButtonText: { color: "#FFFFFF", fontSize: 18, fontWeight: "600", marginLeft: 8 },
+  logoutButtonText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
 });

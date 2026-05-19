@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Dimensions,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,10 +16,13 @@ import { G, Rect, Text as SvgText } from "react-native-svg";
 import { db } from "../config/firebaseConfig";
 
 // imports for exporting the historical data to a CSV file
-import {File, Paths} from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import {Alert} from "react-native";
+import { Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+
+// import for preferences context
+import { usePreferences } from "../context/preferences_context";
 
 // defining the screen width for the chart, to make it responsive
 const screenWidth = Dimensions.get("window").width;
@@ -52,6 +56,8 @@ export default function HistoryChartScreen() {
   const [soilMoistureData, setSoilMoistureData] = useState<number[]>([]);
   const [co2Data, setCo2Data] = useState<number[]>([]);
   const [vpdData, setVpdData] = useState<number[]>([]);
+
+  const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
 
   // state for tooltip visibility and content
   const [tempTooltip, setTempTooltip] = useState<TooltipState>({
@@ -158,12 +164,25 @@ export default function HistoryChartScreen() {
     return () => unsubscribe();
   }, []);
 
+  // if the user preference is set to fahrenheit, we convert the temperature data from celsius to fahrenheit before displaying it on the chart
+  const displayTemperatureData = isFahrenheit
+    ? temperatureData.map((tempC) => Number(((tempC * 9) / 5 + 32).toFixed(1)))
+    : temperatureData;
+  const tempUnit = isFahrenheit ? "°F" : "°C";
+
   // chart configuration - colors and styling
   const chartConfig = {
-    backgroundGradientFrom: "#ffffff",
-    backgroundGradientTo: "#ffffff",
+    backgroundGradientFrom: theme.card,
+    backgroundGradientTo: theme.card,
     color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
-    labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+    labelColor: (opacity = 1) => {
+      // convert hex color to rgba for dynamic theme colors
+      const rgb = parseInt(theme.subtext.slice(1), 16);
+      const r = (rgb >> 16) & 255;
+      const g = (rgb >> 8) & 255;
+      const b = rgb & 255;
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    },
     strokeWidth: 3,
     barPercentage: 0.5,
     useShadowColorFromDataset: false,
@@ -214,31 +233,47 @@ export default function HistoryChartScreen() {
     );
   };
 
-   // function for exporting the historical data to a CSV file 
-    const exportToCSV = async () => {
-      try {
-      // adding a loading state 
+  // function for exporting the historical data to a CSV file
+  const exportToCSV = async () => {
+    try {
+      // adding a loading state
       setLoading(true);
 
       // fetching up to 1000 past readings to include in the CSV export
-      const dataRef = query(ref(db, "proiect-licenta/past_readings"), limitToLast(1000));
+      const dataRef = query(
+        ref(db, "proiect-licenta/past_readings"),
+        limitToLast(1000),
+      );
       const snapshot = await get(dataRef);
 
       if (!snapshot.exists()) {
-        Alert.alert("No data to export", "There are no historical readings available to export.");
+        Alert.alert(
+          "No data to export",
+          "There are no historical readings available to export.",
+        );
         return;
       }
 
+      const tempCsvUnit = isFahrenheit ? "F" : "C";
+
       // creating the csv header row
-      let csvString = "Timestamp,Temperature (C),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n";
+      let csvString =
+        `Timestamp,Temperature (${tempCsvUnit}),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n`;
 
       // iterating through the created snapshot to build the rows
       snapshot.forEach((childSnapshot) => {
         const row = childSnapshot.val();
-        
+
         // formatting the timestamp into a readable format; we create a fallback in case the timestamp is missing from the Firebase or invalid
-        const dateStr = row.timestamp ? new Date(row.timestamp).toLocaleDateString() + " " + new Date(row.timestamp).toTimeString() : "Unknown Timestamp"; // the timestamp in firebase is stored as date + time, so we convert it accordingly
-        csvString += `${dateStr},${row.temperature_c},${row.humidity},${row.light_level},${row.soil_moisture_level},${row.co2_ppm},${row.vpd}\n`;
+        const dateStr = row.timestamp
+          ? new Date(row.timestamp).toLocaleDateString() +
+            " " +
+            new Date(row.timestamp).toTimeString()
+          : "Unknown Timestamp"; // the timestamp in firebase is stored as date + time, so we convert it accordingly
+
+        // convert the raw firebase temp to fahrenheit if the user preference is set to fahrenheit, otherwise keep it in celsius
+        const exportTemp = isFahrenheit ? ((row.temperature_c * 9) / 5 + 32).toFixed(1) : row.temperature_c;
+        csvString += `${dateStr},${exportTemp},${row.humidity},${row.light_level},${row.soil_moisture_level},${row.co2_ppm},${row.vpd}\n`;
       });
 
       // defining the file path for the CSV file
@@ -255,42 +290,51 @@ export default function HistoryChartScreen() {
         await Sharing.shareAsync(file.uri, {
           mimeType: "text/csv",
           dialogTitle: "Export mushroom farm data",
-          UTI: "public.comma-separated-values-text"
+          UTI: "public.comma-separated-values-text",
         });
       } else {
-        Alert.alert("Error sharing file", "Sharing is not available on this device.");
+        Alert.alert(
+          "Error sharing file",
+          "Sharing is not available on this device.",
+        );
       }
-
     } catch (error) {
       console.error("CSV export error: ", error);
-      Alert.alert("Error exporting data", "An error occurred while exporting the data. Please try again.");
+      Alert.alert(
+        "Error exporting data",
+        "An error occurred while exporting the data. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+      />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Historical Sensor Data</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Historical Sensor Data</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
             Visualize past readings from your mushroom farm
           </Text>
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loadingText}>Loading historical data...</Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading historical data...</Text>
           </View>
         ) : temperatureData.length === 0 ? (
-          <Text style={styles.noDataText}>No historical data available</Text>
+          <Text style={[styles.noDataText, { color: theme.subtext }]}>No historical data available</Text>
         ) : (
           <View>
             {/* vpd values chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Past VPD values (kPa)</Text>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>Past VPD values (kPa)</Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -318,18 +362,20 @@ export default function HistoryChartScreen() {
                   setHumTooltip((prev) => ({ ...prev, visible: false }));
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));  
+                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
                 }}
                 decorator={() => renderTooltip(vpdTooltip, "kPa")}
               />
             </View>
             {/* temperature chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Past Temperatures (°C)</Text>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Past Temperatures ({tempUnit})
+              </Text>
               <LineChart
                 data={{
                   labels: labels,
-                  datasets: [{ data: temperatureData }],
+                  datasets: [{ data: displayTemperatureData }],
                 }}
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
@@ -355,12 +401,12 @@ export default function HistoryChartScreen() {
                   setCo2Tooltip((prev) => ({ ...prev, visible: false }));
                   setVpdTooltip((prev) => ({ ...prev, visible: false }));
                 }}
-                decorator={() => renderTooltip(tempTooltip, "°C")}
+                decorator={() => renderTooltip(tempTooltip, tempUnit)}
               />
             </View>
             {/* humidity chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Past Air Humidity (%)</Text>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>Past Air Humidity (%)</Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -394,8 +440,8 @@ export default function HistoryChartScreen() {
               />
             </View>
             {/* light level chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Past Light Levels (lux)</Text>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>Past Light Levels (lux)</Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -428,8 +474,8 @@ export default function HistoryChartScreen() {
               />
             </View>
             {/* soil moisture chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
                 Past Soil Moisture Levels (%)
               </Text>
               <LineChart
@@ -465,8 +511,8 @@ export default function HistoryChartScreen() {
               />
             </View>
             {/* co2 levels chart */}
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Past CO2 Levels (ppm)</Text>
+            <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>Past CO2 Levels (ppm)</Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -500,10 +546,13 @@ export default function HistoryChartScreen() {
             </View>
             {/* export data to CSV button */}
             <TouchableOpacity style={styles.buttonExport} onPress={exportToCSV}>
-              <MaterialCommunityIcons name="file-export-outline" size={24} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.buttonExportText}>
-                Export Data to CSV
-              </Text>
+              <MaterialCommunityIcons
+                name="file-export-outline"
+                size={24}
+                color="white"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.buttonExportText}>Export Data to CSV</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -515,7 +564,6 @@ export default function HistoryChartScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
   },
   scrollContainer: {
     padding: 20,
@@ -528,11 +576,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0F172A",
   },
   headerSubtitle: {
     fontSize: 16,
-    color: "#64748B",
     marginTop: 4,
   },
   loadingContainer: {
@@ -542,17 +588,14 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: "#64748B",
     fontSize: 16,
   },
   noDataText: {
     textAlign: "center",
     marginTop: 50,
-    color: "#64748B",
     fontSize: 16,
   },
   chartCard: {
-    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 15,
     marginBottom: 20,
@@ -565,7 +608,6 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#0F172A",
     marginBottom: 10,
     marginLeft: 10,
   },
@@ -574,7 +616,7 @@ const styles = StyleSheet.create({
   },
   buttonExport: {
     backgroundColor: "#10B981",
-    
+
     padding: 15,
     borderRadius: 8,
     flexDirection: "row",
@@ -586,5 +628,5 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "bold",
     fontSize: 16,
-  }
+  },
 });

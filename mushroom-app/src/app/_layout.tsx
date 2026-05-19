@@ -6,6 +6,29 @@ import { ActivityIndicator, View } from "react-native";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
+// imports for themes (dark/light mode)
+import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native";
+
+// import for preferences context
+import { PreferencesProvider, usePreferences } from "../context/preferences_context";
+
+function RootLayoutNav() {
+  const { isDarkMode } = usePreferences(); // getting the user's dark mode preference from the context
+
+  return (
+    <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
+       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="live_data" />
+        <Stack.Screen name="history_chart" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="forgot_password" />
+        <Stack.Screen name="settings" />
+      </Stack>
+      </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   const [initializing, setInitializing] = useState(true); // state to track if the auth state is being initialized
   const [user, setUser] = useState<User | null>(null); // for storing the current user and its data
@@ -59,13 +82,8 @@ export default function RootLayout() {
   // if the user is logged in -> show the main app
   // if the user is not logged in -> show the auth screen, handled by routing guard logic
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="live_data" />
-      <Stack.Screen name="history_chart" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="forgot_password" />
-      <Stack.Screen name="settings" />
-    </Stack>
+    <PreferencesProvider>
+      <RootLayoutNav />
+    </PreferencesProvider>
   );
 }

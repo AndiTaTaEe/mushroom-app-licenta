@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -11,8 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SensorCard } from "../components/sensor-card";
 import { db } from "../config/firebaseConfig";
 
+// import for preferences context
+import { usePreferences } from "../context/preferences_context";
+
 export default function LiveDataScreen() {
   const [loading, setLoading] = useState(true);
+
+  const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
+
   const [sensorData, setSensorData] = useState({
     temperature_c: "--",
     humidity: "--",
@@ -54,20 +61,35 @@ export default function LiveDataScreen() {
     return () => unsubscribe();
   }, []);
 
+  // converting temperature to fahrenheit if the user preference is set to fahrenheit
+  let displayTemp = sensorData.temperature_c;
+  let tempUnit = "°C";
+  if (sensorData.temperature_c !== "--") {
+    const rawTempC = parseFloat(sensorData.temperature_c);
+    if (isFahrenheit) {
+      displayTemp = ((rawTempC * 9) / 5 + 32).toFixed(1);
+      tempUnit = "°F";
+    }
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+      />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Live Sensor Data</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Live Sensor Data</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
             Real-time readings from your mushroom farm
           </Text>
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#10B981" />
-            <Text style={styles.loadingText}>Loading sensor data...</Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading sensor data...</Text>
           </View>
         ) : (
           <View style={styles.grid}>
@@ -78,13 +100,15 @@ export default function LiveDataScreen() {
               unit="kPa"
               iconName="chart-line-variant"
               iconColor="#8B5CF6"
+              theme={theme}
             />
             <SensorCard
               title="Temperature"
-              value={sensorData.temperature_c}
-              unit="°C"
+              value={displayTemp}
+              unit={tempUnit}
               iconName="thermometer"
               iconColor="#EF4444"
+              theme={theme}
             />
             <SensorCard
               title="Air Humidity"
@@ -92,6 +116,7 @@ export default function LiveDataScreen() {
               unit="%"
               iconName="air-humidifier"
               iconColor="#3B82F6"
+              theme={theme}
             />
             <SensorCard
               title="Light"
@@ -99,6 +124,7 @@ export default function LiveDataScreen() {
               unit="lx"
               iconName="lightbulb"
               iconColor="#F59E0B"
+              theme={theme}
             />
             <SensorCard
               title="Soil Moisture"
@@ -106,6 +132,7 @@ export default function LiveDataScreen() {
               unit="%"
               iconName="water-percent"
               iconColor="#10B981"
+              theme={theme}
             />
             <SensorCard
               title="CO2 Level"
@@ -113,6 +140,7 @@ export default function LiveDataScreen() {
               unit="ppm"
               iconName="molecule-co2"
               iconColor="#64748B"
+              theme={theme}
             />  
           </View>
         )}
@@ -124,7 +152,6 @@ export default function LiveDataScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
   },
   scrollContainer: {
     padding: 20,
@@ -137,11 +164,9 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#0F172A",
   },
   headerSubtitle: {
     fontSize: 16,
-    color: "#64748B",
     marginTop: 4,
   },
   loadingContainer: {
@@ -151,57 +176,9 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: "#64748B",
     fontSize: 16,
   },
   grid: {
     gap: 16,
-  },
-  card: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  iconContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 16,
-  },
-  dataContainer: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 14,
-    color: "#64748B",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  valueRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    marginTop: 4,
-  },
-  cardValue: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#0F172A",
-  },
-  cardUnit: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#94A3B8",
-    marginLeft: 4,
   },
 });

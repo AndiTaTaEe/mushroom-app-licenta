@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Colors } from "../context/preferences_context";
 
 export interface SensorCardProps {
   title: string;
@@ -8,6 +9,7 @@ export interface SensorCardProps {
   unit: string;
   iconName: string;
   iconColor: string;
+  theme?: typeof Colors.light;
 }
 
 export const SensorCard = ({
@@ -16,29 +18,33 @@ export const SensorCard = ({
   unit,
   iconName,
   iconColor,
-}: SensorCardProps) => (
-  <View style={styles.card}>
-    <View style={styles.iconContainer}>
-      <MaterialCommunityIcons
-        name={iconName as any}
-        size={32}
-        color={iconColor}
-      />
-    </View>
-    <View style={styles.dataContainer}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <View style={styles.valueRow}>
-        <Text style={styles.cardValue}>{value}</Text>
-        <Text style={styles.cardUnit}>{unit}</Text>
+  theme,
+}: SensorCardProps) => {
+  const defaultTheme = theme || Colors.light;
+  
+  return (
+    <View style={[styles.card, { backgroundColor: defaultTheme.card }]}>
+      <View style={[styles.iconContainer, { backgroundColor: defaultTheme.background }]}>
+        <MaterialCommunityIcons
+          name={iconName as any}
+          size={32}
+          color={iconColor}
+        />
+      </View>
+      <View style={styles.dataContainer}>
+        <Text style={[styles.cardTitle, { color: defaultTheme.subtext }]}>{title}</Text>
+        <View style={styles.valueRow}>
+          <Text style={[styles.cardValue, { color: defaultTheme.text }]}>{value}</Text>
+          <Text style={[styles.cardUnit, { color: defaultTheme.subtext }]}>{unit}</Text>
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 20,
     alignItems: "center",
@@ -52,7 +58,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#F1F5F9",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
@@ -62,7 +67,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    color: "#64748B",
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -75,12 +79,10 @@ const styles = StyleSheet.create({
   cardValue: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#0F172A",
   },
   cardUnit: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#94A3B8",
     marginLeft: 4,
   },
 });

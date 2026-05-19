@@ -21,6 +21,9 @@ import {
 } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
+// import for preferences context
+import { usePreferences } from "../context/preferences_context";
+
 export default function AuthScreen() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true); // state to toggle between login and signup
@@ -28,6 +31,7 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false); // state to show loading indicator during auth
   const [showPassword, setShowPassword] = useState(false); // state to toggle password visibility
+  const { isDarkMode, theme } = usePreferences(); // getting the user's theme preference
 
   // function to handle auth logic for login and signup
   const handleAuth = async () => {
@@ -74,8 +78,11 @@ export default function AuthScreen() {
 
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+      />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -83,9 +90,9 @@ export default function AuthScreen() {
       >
         {/* header section */}
         <View style={styles.headerContainer}>
-          <MaterialCommunityIcons name="mushroom" size={60} color="#10B981" />
-          <Text style={styles.title}>MushroomMonitor</Text>
-          <Text style={styles.subtitle}>
+          <MaterialCommunityIcons name="mushroom" size={60} color={theme.primary} />
+          <Text style={[styles.title, { color: theme.text }]}>MushroomMonitor</Text>
+          <Text style={[styles.subtitle, { color: theme.subtext }]}>
             {isLogin
               ? "Welcome back to your farm."
               : "Create your farmer account to get started."}
@@ -95,18 +102,18 @@ export default function AuthScreen() {
         {/* input form section*/}
         <View style={styles.formContainer}>
           {/* email input */}
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, { backgroundColor: theme.card }]}>
             <MaterialCommunityIcons
               name="email-outline"
               size={24}
-              color="#94A3B8"
+              color={theme.icon}
               style={styles.inputIcon}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.text }]}
               placeholder="Email address"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={theme.subtext}
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
@@ -114,17 +121,17 @@ export default function AuthScreen() {
             />
           </View>
           {/* password input */}
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, { backgroundColor: theme.card }]}>
             <MaterialCommunityIcons
               name="lock-outline"
               size={24}
-              color="#94A3B8"
+              color={theme.icon}
               style={styles.inputIcon}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.text }]}
               placeholder="Password"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={theme.subtext}
               secureTextEntry={!showPassword} // toggle password visibility
               value={password}
               onChangeText={setPassword}
@@ -137,7 +144,7 @@ export default function AuthScreen() {
               <MaterialCommunityIcons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={24}
-                color="#94A3B8"
+                color={theme.icon}
               />
             </TouchableOpacity>
           </View>
@@ -148,7 +155,7 @@ export default function AuthScreen() {
               style={styles.forgotPasswordButton}
               onPress={() => router.push("/forgot_password")}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>Forgot Password?</Text>
             </TouchableOpacity>
           )}
 
@@ -169,14 +176,14 @@ export default function AuthScreen() {
             style={styles.toggleButton}
             onPress={() => setIsLogin(!isLogin)}
           >
-            <Text style={styles.toggleText}>
+            <Text style={[styles.toggleText, { color: theme.subtext }]}>
               {/* if the user is on the login screen, we want to show "Don't have
               an account? Sign up" and if the user is on the signup screen, we
               want to show "Already have an account? Login" */}
               {isLogin
                 ? "Don't have an account? "
                 : "Already have an account? "}
-              <Text style={styles.toggleTextBold}>
+              <Text style={[styles.toggleTextBold, { color: theme.primary }]}>
                 {isLogin ? "Sign up" : "Login"}
               </Text>
             </Text>
@@ -188,22 +195,20 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1 },
   keyboardView: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
   headerContainer: { alignItems: "center", marginBottom: 40 },
   title: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#0F172A",
     marginTop: 16,
     letterSpacing: 0.5,
   },
-  subtitle: { fontSize: 16, color: "#64748B", marginTop: 8 },
+  subtitle: { fontSize: 16, marginTop: 8 },
   formContainer: { width: "100%" },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     marginBottom: 16,
     paddingHorizontal: 16,
@@ -215,7 +220,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, color: "#0F172A" },
+  input: { flex: 1, fontSize: 16 },
   mainButton: {
     backgroundColor: "#10B981",
     height: 60,
@@ -231,15 +236,14 @@ const styles = StyleSheet.create({
   },
   mainButtonText: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
   toggleButton: { marginTop: 24, alignItems: "center" },
-  toggleText: { color: "#64748B", fontSize: 15 },
-  toggleTextBold: { color: "#10B981", fontWeight: "bold" },
+  toggleText: { fontSize: 15 },
+  toggleTextBold: { fontWeight: "bold" },
   forgotPasswordButton: {
     alignSelf: "flex-end",
     marginBottom: 16,
     marginRight: 4,
   },
   forgotPasswordText: {
-    color: "#10B981",
     fontSize: 14,
     fontWeight: "600",
   },

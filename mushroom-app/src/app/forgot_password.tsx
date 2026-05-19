@@ -74,76 +74,113 @@ export default function ForgotPassScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
-        {/* back button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color="#0F172A" />
-        </TouchableOpacity>
+      {/* back button */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <MaterialCommunityIcons name="arrow-left" size={28} color="#0F172A" />
+      </TouchableOpacity>
 
-        <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.keyboardView}
-        >
-            <View style={styles.headerContainer}>
-                <MaterialCommunityIcons name="lock-reset" size={60} color="10B981" />
-                <Text style={styles.title}> Reset password </Text>
-                <Text style={styles.subtitle}>
-                    Enter your email address and we'll send you instructions to reset your password.
-                </Text>
-            </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
+        <View style={styles.headerContainer}>
+          <MaterialCommunityIcons name="lock-reset" size={60} color="10B981" />
+          <Text style={styles.title}> Reset password </Text>
+          <Text style={styles.subtitle}>
+            Enter your email address and we'll send you instructions to reset
+            your password.
+          </Text>
+        </View>
 
-            <View style={styles.formContainer}>
-                <View style={styles.inputWrapper}>
-                    <MaterialCommunityIcons
-                        name="email-outline"
-                        size={24}
-                        color="#94A3B8"
-                        style={styles.inputIcon}
-                    />
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Email address"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        value={email}
-                        onChangeText={setEmail}
-                    />
-                </View>
-                <TouchableOpacity style={styles.mainButton} activeOpacity={0.8} onPress={handleForgotPassword} disabled={loading}>
-                    <Text style={styles.mainButtonText}>
-                        {loading ? "Sending..." : "Send reset link"}
-                    </Text>
-                </TouchableOpacity>
-            </View>
-        </KeyboardAvoidingView>
+        <View style={styles.formContainer}>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="email-outline"
+              size={24}
+              color="#94A3B8"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email address"
+              placeholderTextColor="#94A3B8"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.mainButton}
+            activeOpacity={0.8}
+            onPress={handleForgotPassword}
+            disabled={loading}
+          >
+            <Text style={styles.mainButtonText}>
+              {loading ? "Sending..." : "Send reset link"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
-  );    
+  );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-  backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10, padding: 10 },
+  backButton: {
+    position: "absolute",
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: 10,
+  },
   keyboardView: { flex: 1, justifyContent: "center", paddingHorizontal: 24 },
   headerContainer: { alignItems: "center", marginBottom: 40 },
-  title: { fontSize: 32, fontWeight: "800", color: "#0F172A", marginTop: 16, letterSpacing: 0.5 },
-  subtitle: { fontSize: 16, color: "#64748B", marginTop: 8, textAlign: 'center', paddingHorizontal: 10 },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginTop: 16,
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#64748B",
+    marginTop: 8,
+    textAlign: "center",
+    paddingHorizontal: 10,
+  },
   formContainer: { width: "100%" },
   inputWrapper: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF",
-    borderRadius: 16, marginBottom: 24, paddingHorizontal: 16, height: 60,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 3, elevation: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    height: 60,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   inputIcon: { marginRight: 12 },
   input: { flex: 1, fontSize: 16, color: "#0F172A" },
   mainButton: {
-    backgroundColor: "#10B981", height: 60, borderRadius: 16,
-    justifyContent: "center", alignItems: "center",
-    shadowColor: "#10B981", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 5, elevation: 6,
+    backgroundColor: "#10B981",
+    height: 60,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
   },
   mainButtonText: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
 });
-
