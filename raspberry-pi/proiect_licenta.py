@@ -191,7 +191,8 @@ while True:
                 'light_level': light_level,
                 'co2_ppm': co2_ppm,
                 'soil_moisture_level': soil_moisture_level,
-                'vpd': vpd_value
+                'vpd': vpd_value,
+                'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
             }
             firebase_manager.upload_data(data)     
         
