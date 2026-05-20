@@ -1,6 +1,10 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import { ActivityIndicator, View, AppState, StyleSheet, Text, TouchableOpacity } from "react-native";
+import {MaterialCommunityIcons} from "@expo/vector-icons";
+
+// import for biometric authentication
+import * as LocalAuthentication from "expo-local-authentication";
 
 // imports for firebase
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -12,9 +16,84 @@ import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native
 // import for preferences context
 import { PreferencesProvider, usePreferences } from "../context/preferences_context";
 
-function RootLayoutNav() {
-  const { isDarkMode } = usePreferences(); // getting the user's dark mode preference from the context
+// main layout component of the app
+// accepting the user as a prop so we know the user's autentication state
+// if the user is logged in -> we show the main app with the bottom tab navigator and the screens + biometric authentication
+// if the user is not logged in -> we show the auth screen, handled by routing guard logic
+function RootLayoutNav({user} : {user: User | null}) {
+  const { isDarkMode, theme } = usePreferences(); // getting the user's dark mode preference from the context
 
+  // security states
+  const [isUnlocked, setIsUnlocked] = useState(false); // state to track if the app is unlocked (after biometric authentication)
+  const appState = useRef(AppState.currentState); // tracking the currentState of the app 
+
+  // function to allow biometric authentication when the app is opened or comes back from the background
+  const authenticateUser = async () => {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync(); // if the device has biometric hardware
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();  // if the user has set up biometrics
+    if (hasHardware && isEnrolled) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Unlock to access the Mushroom app",
+        fallbackLabel: "Use Passcode",
+      });
+      if (result.success) {
+        setIsUnlocked(true);
+      }
+    } else {
+      // if the device doesn't support biometrics, unlock the app
+      setIsUnlocked(true);
+    }
+  };
+
+  // trigger scan immediately when the user opens the app (only if logged in)
+  useEffect(() => {
+    if (user) {
+      authenticateUser();
+    } else {
+      setIsUnlocked(true); // if the user is not logged in, we can consider the app "unlocked" since they will be on the auth screen
+    }
+  }, [user]);
+
+  // trigger biometric auth again when the app comes back from the background
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", nextAppState => {
+      // if the app comes back to the foreground and the user is logged in, we want to trigger biometric authentication again
+      if(appState.current.match(/inactive|backgroun/) && nextAppState === "active") {
+        if (user) {
+          setIsUnlocked(false); // lock the app when it goes to the background
+          authenticateUser(); // trigger biometric authentication when the app comes back from the background
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    // cleanup the event listener 
+    return () => {
+      subscription.remove();
+    }
+  }, [user]);
+
+  // lock screen UI - shown when the app is locked and waiting for biometric authentication
+  if (user && !isUnlocked) {
+    return (
+      <View style={[styles.lockContainer, {backgroundColor: theme.background || "#0F172A"}]}>
+        <MaterialCommunityIcons name="fingerprint" size={80} color="10B981" />
+        <Text style={[styles.title, {color: theme.text || "#F8FAFC"}]}>
+          Farm Secured
+        </Text>
+        <Text style={[styles.subtitle, {color: theme.subtext || "94A3B8"}]}>
+          Authenticate to access your mushroom farm data
+        </Text>
+        <TouchableOpacity
+          onPress={authenticateUser}
+          style={styles.authButton}
+        >
+          <Text style={styles.unlockText}>Unlock</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  // if the user is not logged in, we show the auth screen, handled by routing guard logic in the RootLayout component
   return (
     <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
        <Stack screenOptions={{ headerShown: false }}>
@@ -83,7 +162,38 @@ export default function RootLayout() {
   // if the user is not logged in -> show the auth screen, handled by routing guard logic
   return (
     <PreferencesProvider>
-      <RootLayoutNav />
+      <RootLayoutNav user={user} />
     </PreferencesProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  lockContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginTop: 20
+  },
+  subtitle: {
+    fontSize: 16,
+    marginTop: 10,
+    marginBottom: 40,
+    marginHorizontal: 40,
+    textAlign: "center"
+  },
+  authButton: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 10
+  },
+  unlockText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold"
+  }
+});
