@@ -48,6 +48,10 @@ interface TooltipState {
 export default function HistoryChartScreen() {
   const [loading, setLoading] = useState(true);
 
+  // states for the active time filters and massive raw array
+  const [timeRange, setTimeRange] = useState<"1H" | "24H" | "7D">("1H"); // default to 1 hour
+  const [rawReadings, setRawReadings] = useState<PastReadings[]>([]);
+
   // states to hold the historical data for temperature and humidity
   const [labels, setLabels] = useState<string[]>([]);
   const [temperatureData, setTemperatureData] = useState<number[]>([]);
@@ -102,11 +106,22 @@ export default function HistoryChartScreen() {
     visible: false,
   });
 
+  // helper function to hide all the tooltips
+  const hideAllTooltips = () => {
+    setTempTooltip((prev) => ({ ...prev, visible: false }));
+    setHumTooltip((prev) => ({ ...prev, visible: false }));
+    setLightTooltip((prev) => ({ ...prev, visible: false }));
+    setSoilTooltip((prev) => ({ ...prev, visible: false }));
+    setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+    setVpdTooltip((prev) => ({ ...prev, visible: false }));
+  };
+
+  // fetching the historical data from Firebase 
   useEffect(() => {
-    //creating a query to fetch only the last 7 readings from the "past_readings" node
+    //creating a query to fetch the last 250 readings from the Firebase, so we have enough for 7 days of data readings
     const historyRef = query(
       ref(db, "proiect-licenta/past_readings"),
-      limitToLast(7),
+      limitToLast(250),
     );
 
     const unsubscribe = onValue(
@@ -118,40 +133,7 @@ export default function HistoryChartScreen() {
           const readingsArray: PastReadings[] = Object.values(
             data,
           ) as PastReadings[];
-
-          // extracting specific data into separate arrays for labels, temperature, and humidity
-          const timeLabels = readingsArray.map((reading) => {
-            const dateObj = new Date(reading.timestamp);
-            // extracting only the hours and minutes from the timestamp
-            return `${dateObj.getHours()}:${dateObj.getMinutes().toString().padStart(2, "0")}`;
-          });
-
-          const tempValues = readingsArray.map((reading) =>
-            Number(reading.temperature_c.toFixed(1)),
-          );
-          const humidityValues = readingsArray.map((reading) =>
-            Number(reading.humidity.toFixed(1)),
-          );
-          const lightlevelValues = readingsArray.map((reading) =>
-            Number(reading.light_level.toFixed(1)),
-          );
-          const soilMoistureValues = readingsArray.map((reading) =>
-            Number(reading.soil_moisture_level.toFixed(1)),
-          );
-          const co2Values = readingsArray.map((reading) =>
-            Number(reading.co2_ppm.toFixed(1)),
-          );
-          const vpdValues = readingsArray.map((reading) =>
-            Number(reading.vpd.toFixed(2)),
-          );
-
-          setLabels(timeLabels);
-          setTemperatureData(tempValues);
-          setHumidityData(humidityValues);
-          setLightLevelData(lightlevelValues);
-          setSoilMoistureData(soilMoistureValues);
-          setCo2Data(co2Values);
-          setVpdData(vpdValues);
+          setRawReadings(readingsArray);
         }
         setLoading(false);
       },
@@ -163,6 +145,96 @@ export default function HistoryChartScreen() {
 
     return () => unsubscribe();
   }, []);
+
+  // logic for filtering the raw readings based on the selected time range
+  // runs every time the rawReadings or timeRange state changes, so we can update the displayed data accordingly
+  useEffect(() => {
+    if (rawReadings.length === 0) return; // if there are no readings, we wont filter anythings
+    hideAllTooltips(); // hide any visible tooltips when the range changes (1h, 24h, 7d) to avoid showing tooltips for the wrong data points
+    const now = Date.now();
+    let cutoffTime = now;
+
+    // define how far back we want to go based on the selected time range
+    if (timeRange === "1H") {
+      cutoffTime = now - 60 * 60 * 1000; // 1 hour in ms
+    } else if (timeRange === "24H") {
+      cutoffTime = now - 24 * 60 * 60 * 1000; // 24 hrs in ms
+    } else if (timeRange === "7D") {
+      cutoffTime = now - 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+    }
+
+    // filtering out the readings that are older than the cutoff time
+    let filteredReadings = rawReadings.filter((reading) => {
+      const readingTime = new Date(reading.timestamp).getTime();
+      return readingTime >= cutoffTime;
+    });
+
+    // logic for adjusting the resolution based on the selected time range
+    let MAX_CHART_POINTS = 10; // default for 1h
+    if (timeRange === "24H") MAX_CHART_POINTS = 24; // 1 point per hour
+    if (timeRange === "7D") MAX_CHART_POINTS = 14; // 2 points per day
+
+    // if we have more readings than the max points for the chart, we reduce the number of points by taking every nth point, where n is the total number of readings divided by the max points
+    // this way we can show a representative sample of the data without overcrowding the chart
+    if (filteredReadings.length > MAX_CHART_POINTS) {
+      const step = Math.ceil(filteredReadings.length / MAX_CHART_POINTS);
+      filteredReadings = filteredReadings.filter(
+        (_, index) =>
+          index % step === 0 || index === filteredReadings.length - 1,
+      ); // ensure the last point is included
+    }
+
+    // extracting specific data points for the charts and formatting the labels based on the timestamp of each reading
+    const timeLabels = filteredReadings.map((reading, index) => {
+      // determine if we have room to show the label
+      let shouldShowLabel = true;
+      if (timeRange === "24H") {
+        // 24 points max, show every 4th label
+        shouldShowLabel = index % 4 === 0;
+      } else if (timeRange === "7D") {
+        // 14 points max, show every 2nd label
+        shouldShowLabel = index % 2 === 0;
+      }
+
+      if (!shouldShowLabel) return ""; // if we have too many points, return an empty string for the label to avoid clutter
+
+      // creating a date object from the timestamp to format the label accordingly
+      const dateObj = new Date(reading.timestamp);
+      // if the time range is 7 days, we show the date and time on the labels, otherwise we show only the time
+      if (timeRange === "7D") {
+        return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
+      }
+      return `${dateObj.getHours()}:${dateObj.getMinutes().toString().padStart(2, "0")}`;
+    });
+    setLabels(timeLabels);
+
+    // mapping the filtered readings to extract the specific parameters we want to display for each chart
+    const tempValues = filteredReadings.map((reading) =>
+      Number(reading.temperature_c.toFixed(1)),
+    );
+    const humidityValues = filteredReadings.map((reading) =>
+      Number(reading.humidity.toFixed(1)),
+    );
+    const lightlevelValues = filteredReadings.map((reading) =>
+      Number(reading.light_level.toFixed(1)),
+    );
+    const soilMoistureValues = filteredReadings.map((reading) =>
+      Number(reading.soil_moisture_level.toFixed(1)),
+    );
+    const co2Values = filteredReadings.map((reading) =>
+      Number(reading.co2_ppm.toFixed(1)),
+    );
+    const vpdValues = filteredReadings.map((reading) =>
+      Number(reading.vpd.toFixed(2)),
+    );
+
+    setTemperatureData(tempValues);
+    setHumidityData(humidityValues);
+    setLightLevelData(lightlevelValues);
+    setSoilMoistureData(soilMoistureValues);
+    setCo2Data(co2Values);
+    setVpdData(vpdValues);
+  }, [rawReadings, timeRange]); // we run this effect every time the rawReadings or timeRange state changes
 
   // if the user preference is set to fahrenheit, we convert the temperature data from celsius to fahrenheit before displaying it on the chart
   const displayTemperatureData = isFahrenheit
@@ -257,8 +329,7 @@ export default function HistoryChartScreen() {
       const tempCsvUnit = isFahrenheit ? "F" : "C";
 
       // creating the csv header row
-      let csvString =
-        `Timestamp,Temperature (${tempCsvUnit}),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n`;
+      let csvString = `Timestamp,Temperature (${tempCsvUnit}),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n`;
 
       // iterating through the created snapshot to build the rows
       snapshot.forEach((childSnapshot) => {
@@ -272,7 +343,9 @@ export default function HistoryChartScreen() {
           : "Unknown Timestamp"; // the timestamp in firebase is stored as date + time, so we convert it accordingly
 
         // convert the raw firebase temp to fahrenheit if the user preference is set to fahrenheit, otherwise keep it in celsius
-        const exportTemp = isFahrenheit ? ((row.temperature_c * 9) / 5 + 32).toFixed(1) : row.temperature_c;
+        const exportTemp = isFahrenheit
+          ? ((row.temperature_c * 9) / 5 + 32).toFixed(1)
+          : row.temperature_c;
         csvString += `${dateStr},${exportTemp},${row.humidity},${row.light_level},${row.soil_moisture_level},${row.co2_ppm},${row.vpd}\n`;
       });
 
@@ -310,46 +383,89 @@ export default function HistoryChartScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.background }]}
+    >
       <StatusBar
         barStyle={isDarkMode ? "light-content" : "dark-content"}
         backgroundColor={theme.background}
       />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Historical Sensor Data</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            Historical Sensor Data
+          </Text>
           <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
             Visualize past readings from your mushroom farm
           </Text>
         </View>
 
+        {/* time range filter buttons */}
+        <View style={styles.filterRow}>
+          {["1H", "24H", "7D"].map((range) => (
+            <TouchableOpacity
+              key={range}
+              style={[
+                styles.filterPill,
+                timeRange === range
+                  ? {
+                      backgroundColor: theme.primary,
+                      borderColor: theme.primary,
+                    }
+                  : {
+                      backgroundColor: "transparent",
+                      borderColor: theme.border,
+                    },
+              ]}
+              onPress={() => setTimeRange(range as "1H" | "24H" | "7D")}
+            >
+              <Text
+                style={{
+                  color: timeRange === range ? "white" : theme.text,
+                  fontWeight: timeRange === range ? "bold" : "600",
+                }}
+              >
+                {range}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[styles.loadingText, { color: theme.subtext }]}>Loading historical data...</Text>
+            <Text style={[styles.loadingText, { color: theme.subtext }]}>
+              Loading historical data...
+            </Text>
           </View>
         ) : temperatureData.length === 0 ? (
-          <Text style={[styles.noDataText, { color: theme.subtext }]}>No historical data available</Text>
+          <Text style={[styles.noDataText, { color: theme.subtext }]}>
+            No historical data available
+          </Text>
         ) : (
           <View>
             {/* vpd values chart */}
             <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Past VPD values (kPa)</Text>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Past VPD values (kPa)
+              </Text>
               <LineChart
                 data={{
                   labels: labels,
                   datasets: [{ data: vpdData }],
                 }}
                 width={screenWidth - 60} // 20 padding on each side
-                height={220}
+                height={256}
                 yAxisSuffix="kPa"
+                verticalLabelRotation={30}
+                xLabelsOffset={10}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
                   propsForDots: { r: "4", strokeWidth: "2", stroke: "#8B5CF6" },
                 }}
                 bezier // for smooth curves
-                style={styles.chartStyle}
+                style={styles.chartStyle} // adding extra right padding to make room for the tooltip
                 onDataPointClick={(data) => {
                   setVpdTooltip({
                     x: data.x,
@@ -358,11 +474,11 @@ export default function HistoryChartScreen() {
                     visible: true,
                   });
                   //hide the others tooltip for no overlapping
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
                   setHumTooltip((prev) => ({ ...prev, visible: false }));
                   setLightTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
                   setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+                  setTempTooltip((prev) => ({ ...prev, visible: false }));
                 }}
                 decorator={() => renderTooltip(vpdTooltip, "kPa")}
               />
@@ -380,6 +496,7 @@ export default function HistoryChartScreen() {
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
                 yAxisSuffix="°"
+                verticalLabelRotation={30}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
@@ -406,7 +523,9 @@ export default function HistoryChartScreen() {
             </View>
             {/* humidity chart */}
             <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Past Air Humidity (%)</Text>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Past Air Humidity (%)
+              </Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -415,6 +534,7 @@ export default function HistoryChartScreen() {
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
                 yAxisSuffix="%"
+                verticalLabelRotation={30}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
@@ -441,7 +561,9 @@ export default function HistoryChartScreen() {
             </View>
             {/* light level chart */}
             <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Past Light Levels (lux)</Text>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Past Light Levels (lux)
+              </Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -449,6 +571,7 @@ export default function HistoryChartScreen() {
                 }}
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
+                verticalLabelRotation={30}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
@@ -486,6 +609,7 @@ export default function HistoryChartScreen() {
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
                 yAxisSuffix="%"
+                verticalLabelRotation={30}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
@@ -512,7 +636,9 @@ export default function HistoryChartScreen() {
             </View>
             {/* co2 levels chart */}
             <View style={[styles.chartCard, { backgroundColor: theme.card }]}>
-              <Text style={[styles.chartTitle, { color: theme.text }]}>Past CO2 Levels (ppm)</Text>
+              <Text style={[styles.chartTitle, { color: theme.text }]}>
+                Past CO2 Levels (ppm)
+              </Text>
               <LineChart
                 data={{
                   labels: labels,
@@ -520,6 +646,7 @@ export default function HistoryChartScreen() {
                 }}
                 width={screenWidth - 60} // 20 padding on each side
                 height={220}
+                verticalLabelRotation={30}
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
@@ -541,7 +668,7 @@ export default function HistoryChartScreen() {
                   setHumTooltip((prev) => ({ ...prev, visible: false }));
                   setSoilTooltip((prev) => ({ ...prev, visible: false }));
                 }}
-                decorator={() => renderTooltip(co2Tooltip, "")}
+                decorator={() => renderTooltip(co2Tooltip, "ppm")}
               />
             </View>
             {/* export data to CSV button */}
@@ -580,6 +707,20 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     marginTop: 4,
+  },
+  filterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    gap: 10,
+  },
+  filterPill: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    borderWidth: 1,
   },
   loadingContainer: {
     marginTop: 100,
