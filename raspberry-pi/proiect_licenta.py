@@ -32,16 +32,16 @@ SAMPLE_INTERVAL = 3.0 # seconds between sample
 
 # push notification settings
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send" # expo push notification API endpoint
-COOLDOWN_SECONDS = 300 # cooldown between alerts for the same parameter, to avoid spamming notifications
+COOLDOWN_SECONDS = 900 # cooldown (15 mins) between notifications for the same parameter, to avoid spamming notifications
 
-# dictionary to track last time an alert was sent for each parameter
-last_alert_times = {
-    'temp': 0,
-    'humidity': 0,
-    'light': 0,
-    'co2': 0,
-    'soil_moisture': 0,
-    'vpd': 0
+# dictionary to track last time an notification was sent for each parameter
+last_notification_times = {
+    'temperature_c': 0,
+    'humidity_percent': 0,
+    'light_lux': 0,
+    'co2_ppm': 0,
+    'soil_moisture_percent': 0,
+    'vpd_kpa': 0
 }
 
 
@@ -67,6 +67,9 @@ hw101_sensor = HW101(channel_hw101, dry_val=17636, wet_val=8008)
 
 # initalization of firebase manager
 firebase_manager = FirebaseManager()
+
+# logging an 'info' alert in firebase that the system has started - useful for tracking restarts and debugging
+firebase_manager.send_alert("Raspberry Pi system booted and sensors initialized.", "info", "system")
 
 # function for VPD calculation (vapor pressure deficit) - important parameter for mushroom growth, calculated based on temperature and air humidity readings
 def calculate_vpd(temperature_c, air_humidity):
@@ -99,12 +102,20 @@ def sigint_handler(signum, frame):
 signal.signal(signal.SIGINT, sigint_handler)
 signal.signal(signal.SIGTERM, sigint_handler)
 
-# push notifications logic 
+# push notifications logic & database alert log
 # checks if the cooldown period has passed since the last alert for the given sensor type, and if so, sends a push notification to the mobile app using the Expo push notification service
-def send_push_notification(sensor_type, title, message, current_time):
-   
-    if (current_time - last_alert_times[sensor_type]) > COOLDOWN_SECONDS:
+def trigger_alarm(sensor_type, title, message, alert_type, current_time):
+    # check the cooldown for push notifications
+    if (current_time - last_notification_times[sensor_type]) > COOLDOWN_SECONDS:
         print(f"Sending push notification for {sensor_type} alert: {title} - {message}")
+
+        # write to the alert log in firebase
+        firebase_manager.send_alert(
+            message=message,
+            alert_type=alert_type,
+            parameter=sensor_type
+        )
+
         token = firebase_manager.get_push_token() # get the push token from firebase
 
         # if the token is available, send the push notification with a given title and message to the mobile app
@@ -126,14 +137,48 @@ def send_push_notification(sensor_type, title, message, current_time):
             # send the POST req to the Expo push notification endpoint with the payload
             try:
                 requests.post(EXPO_PUSH_URL, headers=headers, json=payload)
-                print("Push notification sent successfully")
-                last_alert_times[sensor_type] = current_time # update the last alert time for this sensor type
+                print("Push notification sent successfully\n")
+                last_notification_times[sensor_type] = current_time # update the last notification time for this sensor type
             except Exception as e:
                 print(f"Failed to send push notification: {e}")
         else:
             print("No push token available, cannot send notification")
     else:
         pass #skip sending notification if cooldown hasnt passed 
+
+
+# threshold evaluator - calculates buffer zones and triggers appropiate alerts
+def evaluate_sensor(value, param_key, display_name, unit, current_time, thresholds):
+    if value is None:
+        return #skip evaluation if sensor failed to read
+    
+    critical_low = thresholds[param_key]["min"]
+    critical_high = thresholds[param_key]["max"]
+
+    # 15% warning buffer inside the safe zone
+    range_span = critical_high - critical_low
+    buffer = range_span * 0.15
+    warning_low = critical_low + buffer
+    warning_high = critical_high - buffer
+
+    # evaluate critical conditions first
+    if value <= critical_low or value >=critical_high:
+        trigger_alarm(
+            param_key,
+            f"Critical {display_name}",
+            f"{display_name} is {value:.1f}{unit} (Outside {critical_low} - {critical_high}{unit})",
+            "critical",
+            current_time
+        )
+    # check warning buffer second
+    elif value <= warning_low or value >= warning_high:
+        trigger_alarm(
+            param_key,
+            f"{display_name} Warning",
+            f"{display_name} is {value:.1f}{unit} (Approaching limits of {critical_low} - {critical_high}{unit})",
+            "warning",
+            current_time
+        )
 
 # main loop
 # to do: add control logic for heating/cooling and humidifying/dehumidifying based on readings
@@ -183,18 +228,17 @@ while True:
         if temperature_c is not None and humidity is not None:
             vpd_value = calculate_vpd(temperature_c, humidity)
 
-        # logic to upload readings to firebase - if all readings are valid => upload to firebase, if any reading is invalid => no uploading to firebase and display error 
-        if all(value is not None for value in [temperature_c, humidity, light_level, co2_ppm, soil_moisture_level, vpd_value]):
-            data = {
-                'temperature_c': temperature_c,
-                'humidity': humidity,
-                'light_level': light_level,
-                'co2_ppm': co2_ppm,
-                'soil_moisture_level': soil_moisture_level,
-                'vpd': vpd_value,
-                'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
-            }
-            firebase_manager.upload_data(data)     
+        # logic to upload readings to firebase - upload every time 
+        data = {
+            'temperature_c': temperature_c,
+            'humidity_percent': humidity,
+            'light_lux': light_level,
+            'co2_ppm': co2_ppm,
+            'soil_moisture_percent': soil_moisture_level,
+            'vpd_kpa': vpd_value,
+           'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
+        }
+        firebase_manager.upload_data(data)     
         
         # OLED logic to display readings
         with canvas(device) as draw:
@@ -210,18 +254,13 @@ while True:
         # getting the live thresholds from firebase to compare with the sensor readings and trigger notifications if thresholds are exceeded
         thresholds = firebase_manager.get_thresholds() 
 
-        if temperature_c is not None and (temperature_c <= thresholds["temperature_c"]["min"] or temperature_c >= thresholds["temperature_c"]["max"]):
-            send_push_notification("temp", "Temperature Warning", f'Temperature is {temperature_c:.1f}°C (Outside {thresholds["temperature_c"]["min"]} - {thresholds["temperature_c"]["max"]})', current_time)
-        if humidity is not None and (humidity <= thresholds["humidity_percent"]["min"] or humidity >= thresholds["humidity_percent"]["max"]):
-            send_push_notification("humidity", "Humidity Warning", f'Humidity is {humidity:.1f}% (Outside {thresholds["humidity_percent"]["min"]} - {thresholds["humidity_percent"]["max"]})', current_time)
-        if light_level is not None and (light_level <= thresholds["light_lux"]["min"] or light_level >= thresholds["light_lux"]["max"]):
-            send_push_notification("light", "Light Warning", f'Light level is {light_level:.1f} lx (Outside {thresholds["light_lux"]["min"]} - {thresholds["light_lux"]["max"]})', current_time)
-        if co2_ppm is not None and (co2_ppm <= thresholds["co2_ppm"]["min"] or co2_ppm >= thresholds["co2_ppm"]["max"]):
-            send_push_notification("co2", "CO2 Warning", f'CO2 level is {int(co2_ppm)} ppm (Outside {thresholds["co2_ppm"]["min"]} - {thresholds["co2_ppm"]["max"]})', current_time)
-        if soil_moisture_level is not None and (soil_moisture_level <= thresholds["soil_moisture_percent"]["min"] or soil_moisture_level >= thresholds["soil_moisture_percent"]["max"]):
-            send_push_notification("soil_moisture", "Soil Moisture Warning", f'Soil moisture level is {soil_moisture_level:.1f}% (Outside {thresholds["soil_moisture_percent"]["min"]} - {thresholds["soil_moisture_percent"]["max"]})', current_time)
-        if vpd_value is not None and (vpd_value <= thresholds["vpd_kpa"]["min"] or vpd_value >= thresholds["vpd_kpa"]["max"]):
-            send_push_notification("vpd", "VPD Warning", f'VPD is {vpd_value:.2f} kPa (Outside {thresholds["vpd_kpa"]["min"]} - {thresholds["vpd_kpa"]["max"]})', current_time)
+        # evaluating each sensor reading against the thresholds and triggering notifications if necessary
+        evaluate_sensor(temperature_c, 'temperature_c', 'Temperature', '°C', current_time, thresholds)
+        evaluate_sensor(humidity, 'humidity_percent', 'Humidity', '%', current_time, thresholds)
+        evaluate_sensor(light_level, 'light_lux', 'Light Level', 'lx', current_time, thresholds)
+        evaluate_sensor(co2_ppm, 'co2_ppm', 'CO2 Level', 'ppm', current_time, thresholds)
+        evaluate_sensor(soil_moisture_level, 'soil_moisture_percent', 'Soil Moisture', '%', current_time, thresholds)
+        evaluate_sensor(vpd_value, 'vpd_kpa', 'VPD', 'kPa', current_time, thresholds)   
 
     except Exception as error:
         print(f"Error in main loop: {error}")

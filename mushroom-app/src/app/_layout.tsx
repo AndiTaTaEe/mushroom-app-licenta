@@ -103,6 +103,7 @@ function RootLayoutNav({user} : {user: User | null}) {
         <Stack.Screen name="auth" />
         <Stack.Screen name="forgot_password" />
         <Stack.Screen name="settings" />
+        <Stack.Screen name="alerts" />
       </Stack>
       </ThemeProvider>
   );

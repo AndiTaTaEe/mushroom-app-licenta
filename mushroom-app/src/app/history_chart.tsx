@@ -29,11 +29,11 @@ const screenWidth = Dimensions.get("window").width;
 
 interface PastReadings {
   temperature_c: number;
-  humidity: number;
-  light_level: number;
-  soil_moisture_level: number;
+  humidity_percent: number;
+  light_lux: number;
+  soil_moisture_percent: number;
   co2_ppm: number;
-  vpd: number;
+  vpd_kpa: number;
   timestamp: string;
 }
 
@@ -213,19 +213,19 @@ export default function HistoryChartScreen() {
       Number(reading.temperature_c.toFixed(1)),
     );
     const humidityValues = filteredReadings.map((reading) =>
-      Number(reading.humidity.toFixed(1)),
+      Number(reading.humidity_percent.toFixed(1)),
     );
     const lightlevelValues = filteredReadings.map((reading) =>
-      Number(reading.light_level.toFixed(1)),
+      Number(reading.light_lux.toFixed(1)),
     );
     const soilMoistureValues = filteredReadings.map((reading) =>
-      Number(reading.soil_moisture_level.toFixed(1)),
+      Number(reading.soil_moisture_percent.toFixed(1)),
     );
     const co2Values = filteredReadings.map((reading) =>
       Number(reading.co2_ppm.toFixed(1)),
     );
     const vpdValues = filteredReadings.map((reading) =>
-      Number(reading.vpd.toFixed(2)),
+      Number(reading.vpd_kpa.toFixed(2)),
     );
 
     setTemperatureData(tempValues);

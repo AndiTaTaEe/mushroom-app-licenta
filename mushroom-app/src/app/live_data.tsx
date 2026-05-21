@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { onValue, ref } from "firebase/database";
 import React, { useEffect, useState } from "react";
 import {
@@ -6,6 +7,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -18,6 +20,7 @@ import { usePreferences } from "../context/preferences_context";
 
 export default function LiveDataScreen() {
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
 
@@ -27,11 +30,11 @@ export default function LiveDataScreen() {
 
   const [sensorData, setSensorData] = useState({
     temperature_c: "--",
-    humidity: "--",
-    light_level: "--",
-    soil_moisture_level: "--",
+    humidity_percent: "--",
+    light_lux: "--",
+    soil_moisture_percent: "--",
     co2_ppm: "--",
-    vpd: "--",
+    vpd_kpa: "--",
   });
 
   // effect to update the current time every 10 seconds so "last updated" can be calculated in real-time
@@ -55,11 +58,12 @@ export default function LiveDataScreen() {
         if (data) {
           setSensorData({
             temperature_c: data.temperature_c?.toFixed(1) || "--",
-            humidity: data.humidity?.toFixed(1) || "--",
-            light_level: data.light_level?.toFixed(1) || "--",
-            soil_moisture_level: data.soil_moisture_level?.toFixed(1) || "--",
+            humidity_percent: data.humidity_percent?.toFixed(1) || "--",
+            light_lux: data.light_lux?.toFixed(1) || "--",
+            soil_moisture_percent:
+              data.soil_moisture_percent?.toFixed(1) || "--",
             co2_ppm: data.co2_ppm?.toFixed(0) || "--",
-            vpd: data.vpd?.toFixed(2) || "--",
+            vpd_kpa: data.vpd_kpa?.toFixed(2) || "--",
           });
 
           // capture the timestamp from the Pi - fallback to current time if missing
@@ -90,15 +94,21 @@ export default function LiveDataScreen() {
 
   // system status calculation logic
   // check if the difference between now and the last updated timestamp is greater than 5 minutes (300000 ms)
-  const isOffline = lastUpdated ? (now - lastUpdated) > 300000 : true; // if lastUpdates is null - consider it offline
+  const isOffline = lastUpdated ? now - lastUpdated > 300000 : true; // if lastUpdates is null - consider it offline
   let timeAgoText = "Waiting for data...";
   if (lastUpdated) {
-    const diffInSeconds = Math.max(0,Math.floor((now - lastUpdated) / 1000));
+    const diffInSeconds = Math.max(0, Math.floor((now - lastUpdated) / 1000));
     if (diffInSeconds < 60) {
       timeAgoText = `Updated ${diffInSeconds} s ago`;
-    } else {
+    } else if (diffInSeconds < 3600) {
       const diffInMinutes = Math.floor(diffInSeconds / 60);
       timeAgoText = `Updated ${diffInMinutes} m ago`;
+    } else if (diffInSeconds < 86400) {
+      const diffInHours = Math.floor(diffInSeconds / 3600);
+      timeAgoText = `Updated ${diffInHours} h ago`;
+    } else {
+      const diffInDays = Math.floor(diffInSeconds / 86400);
+      timeAgoText = `Updated ${diffInDays} d ago`;
     }
   }
 
@@ -112,12 +122,27 @@ export default function LiveDataScreen() {
       />
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>
-            Live Sensor Data
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
-            Real-time readings from your mushroom farm
-          </Text>
+          {/* header section with title and subtitle */}
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>
+              Live Sensor Data
+            </Text>
+            <Text style={[styles.headerSubtitle, { color: theme.subtext }]}>
+              Real-time readings from your mushroom farm
+            </Text>
+          </View>
+
+          {/* event log navigation button */}
+          <TouchableOpacity
+            style={[styles.alertButton, { backgroundColor: theme.primary }]}
+            onPress={() => router.push("/alerts")}
+          >
+            <MaterialCommunityIcons
+              name="bell-outline"
+              size={24}
+              color={theme.text}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* system status indicator */}
@@ -165,7 +190,7 @@ export default function LiveDataScreen() {
             {/* rendering sensor cards with sensor data */}
             <SensorCard
               title="VPD Level"
-              value={sensorData.vpd}
+              value={sensorData.vpd_kpa}
               unit="kPa"
               iconName="chart-line-variant"
               iconColor="#8B5CF6"
@@ -181,7 +206,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Air Humidity"
-              value={sensorData.humidity}
+              value={sensorData.humidity_percent}
               unit="%"
               iconName="air-humidifier"
               iconColor="#3B82F6"
@@ -189,7 +214,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Light"
-              value={sensorData.light_level}
+              value={sensorData.light_lux}
               unit="lx"
               iconName="lightbulb"
               iconColor="#F59E0B"
@@ -197,7 +222,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Soil Moisture"
-              value={sensorData.soil_moisture_level}
+              value={sensorData.soil_moisture_percent}
               unit="%"
               iconName="water-percent"
               iconColor="#10B981"
@@ -227,6 +252,9 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 24,
     marginTop: 10,
   },
@@ -237,6 +265,18 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 16,
     marginTop: 4,
+  },
+  alertButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   healthBanner: {
     padding: 12,

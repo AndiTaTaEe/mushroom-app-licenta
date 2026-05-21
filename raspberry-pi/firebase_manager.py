@@ -14,6 +14,18 @@ class FirebaseManager:
         self.upload_interval = upload_to_firebase_interval
         self.last_upload_time = 0 # variable for tracking last upload to firebase
 
+        # alert cooldown variables - for sending alerts to an alert box in the mobile app 
+        self.alert_cooldown = 900 
+        self.last_alert_times = {
+            "temperature_c": 0,
+            "humidity_percent": 0,
+            "light_lux": 0,
+            "co2_ppm": 0,
+            "soil_moisture_percent": 0,
+            "vpd_kpa": 0,
+            "system": 0 # for system status implementation in fetching the live data from firebase
+        }
+
         # predefined thresholds for the farm parameters - used when the Pi boots up, before firebase overriding them
         self.farm_thresholds = {
             "temperature_c": {"min": 15.0, "max": 30.0},
@@ -77,6 +89,7 @@ class FirebaseManager:
         try:
             current_time = time.time()
             data_dictionary['timestamp'] = str(datetime.datetime.now()) # add a timestamp to the uploaded data
+            data_dictionary['last_updated'] = int(current_time*1000) # last_updated field in ms, used for the system status implementation
 
             # current readings node - updating every 3 seconds
             self.root_ref.child('current_readings').set(data_dictionary) # overwriting the current data with new data
@@ -89,6 +102,30 @@ class FirebaseManager:
         except Exception as e:
             print(f"Firebase Sync Error: {e}")
 
+    def send_alert(self, message, alert_type, parameter):
+        """
+        pushes an alert to firebase if the cooldown period (15 min) has passed
+        :param message: text to display in the alert box in the mobile app
+        :param alert_type: "critical" or "warning", used for different styling in the mobile app
+        :param parameter: "temperature_c", "humidity_percent", "light_lux", "co2_ppm", "soil_moisture_percent", "vpd_kpa" or "system" - used for tracking the cooldown for each parameter separately, and for the system status implementation in firebase
+        """
+        now = time.time()
+
+        #check if the cooldown period has passed for this parameter
+        if (now - self.last_alert_times.get(parameter, 0)) > self.alert_cooldown:
+            alert_data = {
+                "timestamp": int(now*1000),
+                "message": message,
+                "type": alert_type,
+                "parameter": parameter
+            } 
+            try:
+                self.root_ref.child('alerts').push(alert_data) # push the alert to firebase, creating a new entry with a unique key on timestamp
+                self.last_alert_times[parameter] = now
+                print(f"Alert sent to Mobile App: {message}")
+            except Exception as e:
+                print(f"Failed to send alert to Firebase: {e}")
+ 
     def get_push_token(self):
         """
         this function is used to retrieve the push token from Firebase for sending notifications to the mobile app, in order to trigger notifications from RPi5 when the readings exceed certain thresholds
