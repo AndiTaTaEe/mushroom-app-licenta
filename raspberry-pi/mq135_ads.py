@@ -15,7 +15,7 @@ class MQ135:
     #MQ-135 calibration constants
     MQ135_DEFAULTPPM = 427.13 #default CO2 concentration for calibration, by 15/12/2025
     MQ135_DEFAULTRO = 41763.0 #to be used for calibration
-    MQ135_CALIBRATED_RO = 28014.55 #calibrated Ro value for the MQ135 sensor - obtained after calibration in fresh air (around 431ppm CO2) on 21/5/2026
+    MQ135_CALIBRATED_RO = 43224.46 #calibrated Ro value for the MQ135 sensor - obtained after calibration in fresh air (around 431ppm CO2) on 21/5/2026
     
 
     #MQ-135 validity constants

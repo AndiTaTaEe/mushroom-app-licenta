@@ -25,6 +25,7 @@ from firebase_manager import FirebaseManager
 # imports for pushing notifications to mobile app
 import requests
 
+
 # constants
 SAMPLE_INTERVAL = 3.0 # seconds between sample
 # info - optimal conditions for mushroom growth: temperature between 15-30C, humidity between 80-90%, light level between 500-1000 lx, CO2 levels between 500-1000 ppm (during the fruiting phase), soil moisture between 80-90% (for the substrate) - values that can be changed based on the cultivated mushroom species and growth phase
@@ -181,7 +182,6 @@ def evaluate_sensor(value, param_key, display_name, unit, current_time, threshol
         )
 
 # main loop
-# to do: add control logic for heating/cooling and humidifying/dehumidifying based on readings
 while True:
     try:
         current_time = time.time() # get the current time, used for checking cooldowns before sending notifications 
@@ -228,17 +228,18 @@ while True:
         if temperature_c is not None and humidity is not None:
             vpd_value = calculate_vpd(temperature_c, humidity)
 
+        if all(value is not None for value in [temperature_c, humidity, light_level, co2_ppm, soil_moisture_level, vpd_value]):
         # logic to upload readings to firebase - upload every time 
-        data = {
-            'temperature_c': temperature_c,
-            'humidity_percent': humidity,
-            'light_lux': light_level,
-            'co2_ppm': co2_ppm,
-            'soil_moisture_percent': soil_moisture_level,
-            'vpd_kpa': vpd_value,
-           'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
-        }
-        firebase_manager.upload_data(data)     
+            data = {
+                'temperature_c': temperature_c,
+                'humidity_percent': humidity,
+                'light_lux': light_level,
+                'co2_ppm': co2_ppm,
+                'soil_moisture_percent': soil_moisture_level,
+                'vpd_kpa': vpd_value,
+                'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
+            }
+            firebase_manager.upload_data(data)     
         
         # OLED logic to display readings
         with canvas(device) as draw:
@@ -268,4 +269,3 @@ while True:
     time.sleep(SAMPLE_INTERVAL)
     print("")
 
-#TO DO: add fans and relays to control temperature and humidity based on sensor readings
