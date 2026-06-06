@@ -54,9 +54,26 @@ class FirebaseManager:
             self.settings_ref.listen(self._settings_listener) # background listener for changes in farm setttings
 
             print("Firebase initialized successfully. Listening for mobile app changes in farm settings...")
+
+            # for caching the push token
+            self.cached_push_token = None # variable for caching the push token, to avoid fetching it from firebase every time we need to send a notification, since the push token does not change often and fetching it every time would be inefficient
+            self._fetch_initial_push_token()
         except Exception as e:
             print(f"Error initializing Firebase: {e}")
             raise
+
+
+    # function that fetchs the push token from firebase from the beginning and caches it into the FirebaseManager instance
+    # we avoid fetching the push token every time we send a notification
+    def _fetch_initial_push_token(self):
+        try:
+            self.cached_push_token = db.reference("admin/push_token").get() # fetch the push token from firebase and cache it
+            print("Initial push token fetched and cached successfully")
+        except Exception as e:
+            print(f"Failed to cache push token: {e}")
+
+    def get_push_token(self):
+        return self.cached_push_token # return the cached push token, to avoid fetching it from firebase every time we need to send a notification
 
     # listener function for changes in farm settings in firebase, runs automatically in the background when changes are detected 
     def _settings_listener(self, event):
@@ -87,12 +104,10 @@ class FirebaseManager:
         param data_dictionary: a dictionary containing the sensor readings to be uploaded to firebase
         """
         try:
-            current_time = time.time()
-            data_dictionary['timestamp'] = str(datetime.datetime.now()) # add a timestamp to the uploaded data
-            data_dictionary['last_updated'] = int(current_time*1000) # last_updated field in ms, used for the system status implementation
-
-            # current readings node - updating every 3 seconds
+            # current readings node - updating every 3 seconds (SAMPLE_INTERVAL) in main loop
             self.root_ref.child('current_readings').set(data_dictionary) # overwriting the current data with new data
+            print("[CL-T] Current readings updated in Firebase")
+            current_time = data_dictionary['last_updated'] / 1000 # convert timestamp back to seconds for easier time calculations
 
             # past readings node - updating every 5 minutes
             if current_time - self.last_upload_time >= self.upload_interval:
@@ -102,7 +117,7 @@ class FirebaseManager:
         except Exception as e:
             print(f"Firebase Sync Error: {e}")
 
-    def send_alert(self, message, alert_type, parameter):
+    def register_alert(self, message, alert_type, parameter):
         """
         pushes an alert to firebase if the cooldown period (15 min) has passed
         :param message: text to display in the alert box in the mobile app
@@ -122,16 +137,11 @@ class FirebaseManager:
             try:
                 self.root_ref.child('alerts').push(alert_data) # push the alert to firebase, creating a new entry with a unique key on timestamp
                 self.last_alert_times[parameter] = now
-                print(f"Alert sent to Mobile App: {message}")
+                print(f"Alert sent to Firebase: {message}")
+                # function telling proiect_licenta.py to trigger the push notification to the mobile app through the Expo push notification service, using the push token stored in firebase
+                return True
             except Exception as e:
                 print(f"Failed to send alert to Firebase: {e}")
+                return False # if the alert failed to send to firebase, we return False so that proiect_licenta.py does not trigger the push notification 
+        return False # if the cooldown period has not passed, we return False so that proiect_licenta.py does not trigger the push notification 
  
-    def get_push_token(self):
-        """
-        this function is used to retrieve the push token from Firebase for sending notifications to the mobile app, in order to trigger notifications from RPi5 when the readings exceed certain thresholds
-        """
-        try:
-            return db.reference("admin/push_token").get() # gets the push token from the database
-        except Exception as e:
-            print(f"Error retrieving push token: {e}")
-            return None

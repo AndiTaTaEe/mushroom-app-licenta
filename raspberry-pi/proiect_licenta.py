@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import adafruit_dht
 import adafruit_ads1x15.ads1115 as ADS
 import board
@@ -5,6 +7,7 @@ import busio
 import math
 import sys
 import signal
+import subprocess
 import time
 from adafruit_ads1x15.analog_in import AnalogIn 
 
@@ -25,26 +28,22 @@ from firebase_manager import FirebaseManager
 # imports for pushing notifications to mobile app
 import requests
 
+#imports for threading 
+import threading
+import queue
+
 
 # constants
 SAMPLE_INTERVAL = 3.0 # seconds between sample
 # info - optimal conditions for mushroom growth: temperature between 15-30C, humidity between 80-90%, light level between 500-1000 lx, CO2 levels between 500-1000 ppm (during the fruiting phase), soil moisture between 80-90% (for the substrate) - values that can be changed based on the cultivated mushroom species and growth phase
 
-
 # push notification settings
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send" # expo push notification API endpoint
-COOLDOWN_SECONDS = 900 # cooldown (15 mins) between notifications for the same parameter, to avoid spamming notifications
 
-# dictionary to track last time an notification was sent for each parameter
-last_notification_times = {
-    'temperature_c': 0,
-    'humidity_percent': 0,
-    'light_lux': 0,
-    'co2_ppm': 0,
-    'soil_moisture_percent': 0,
-    'vpd_kpa': 0
-}
 
+# queue initialization for the communication between the hardware reading and firebase thread
+telemetry_queue = queue.Queue(maxsize=10) #maxsize = 10 to avoid memory overflow if the WiFi connection is down for a long time and the readings are piling up in the queue
+active_thresholds = None 
 
 # hardware initialization
 i2c_bus = busio.I2C(board.SCL, board.SDA) #uses board.SCL and board.SDA
@@ -68,9 +67,8 @@ hw101_sensor = HW101(channel_hw101, dry_val=17636, wet_val=8008)
 
 # initalization of firebase manager
 firebase_manager = FirebaseManager()
-
 # logging an 'info' alert in firebase that the system has started - useful for tracking restarts and debugging
-firebase_manager.send_alert("Raspberry Pi system booted and sensors initialized.", "info", "system")
+firebase_manager.register_alert("Raspberry Pi system booted and sensors initialized.", "info", "system")
 
 # function for VPD calculation (vapor pressure deficit) - important parameter for mushroom growth, calculated based on temperature and air humidity readings
 def calculate_vpd(temperature_c, air_humidity):
@@ -87,10 +85,24 @@ def calculate_vpd(temperature_c, air_humidity):
     except Exception as e:
         print(f"Error calculating VPD: {e}")
         return None
+    
+#helper function to override the speed of the active cooler fan, used for lowering the temperature
+def override_pi_fan(speed_level):
+    """
+    accepts an integer from 0 (off) to 4 (100% max speed)
+    """
+    try:
+        #cooling_device0 is the standard linux path for the Pi5 PWM fan
+        command = f"echo {speed_level} > /sys/class/thermal/cooling_device0/cur_state"
+        #subprocess to run the bash command with sudo privileges
+        subprocess.run(['sudo', 'sh', '-c', command], stdout = subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print(f"Failed to override fan speed: {e}")
 
 # cleanup function to handle exit signals
 def cleanup_and_exit(code=0):
     try:
+        override_pi_fan(0) # turn off the fan on exit
         dht22_sensor.exit()
     except Exception:
         pass
@@ -105,17 +117,12 @@ signal.signal(signal.SIGTERM, sigint_handler)
 
 # push notifications logic & database alert log
 # checks if the cooldown period has passed since the last alert for the given sensor type, and if so, sends a push notification to the mobile app using the Expo push notification service
-def trigger_alarm(sensor_type, title, message, alert_type, current_time):
-    # check the cooldown for push notifications
-    if (current_time - last_notification_times[sensor_type]) > COOLDOWN_SECONDS:
-        print(f"Sending push notification for {sensor_type} alert: {title} - {message}")
+def trigger_alarm(sensor_type, title, message, alert_type):
+    
+    is_new_alert = firebase_manager.register_alert(message, alert_type, sensor_type) # write to the alert log in firebase and check if the cooldown period has passed to trigger a new alert
 
-        # write to the alert log in firebase
-        firebase_manager.send_alert(
-            message=message,
-            alert_type=alert_type,
-            parameter=sensor_type
-        )
+    if is_new_alert:
+        print(f"Sending push notification for {sensor_type} alert: {title}")
 
         token = firebase_manager.get_push_token() # get the push token from firebase
 
@@ -137,15 +144,12 @@ def trigger_alarm(sensor_type, title, message, alert_type, current_time):
 
             # send the POST req to the Expo push notification endpoint with the payload
             try:
-                requests.post(EXPO_PUSH_URL, headers=headers, json=payload)
+                requests.post(EXPO_PUSH_URL, headers=headers, json=payload, timeout=5)
                 print("Push notification sent successfully\n")
-                last_notification_times[sensor_type] = current_time # update the last notification time for this sensor type
             except Exception as e:
                 print(f"Failed to send push notification: {e}")
         else:
             print("No push token available, cannot send notification")
-    else:
-        pass #skip sending notification if cooldown hasnt passed 
 
 
 # threshold evaluator - calculates buffer zones and triggers appropiate alerts
@@ -169,7 +173,6 @@ def evaluate_sensor(value, param_key, display_name, unit, current_time, threshol
             f"Critical {display_name}",
             f"{display_name} is {value:.1f}{unit} (Outside {critical_low} - {critical_high}{unit})",
             "critical",
-            current_time
         )
     # check warning buffer second
     elif value <= warning_low or value >= warning_high:
@@ -178,10 +181,44 @@ def evaluate_sensor(value, param_key, display_name, unit, current_time, threshol
             f"{display_name} Warning",
             f"{display_name} is {value:.1f}{unit} (Approaching limits of {critical_low} - {critical_high}{unit})",
             "warning",
-            current_time
         )
 
-# main loop
+# function to run the cloud uploader and notification trigger in a separate thread, to avoid blocking the main thread in case of WiFi connectivity issues or firebase errors
+def cloud_worker_task():
+    global active_thresholds # used for storing the latest thresholds fetched from firebase
+    while True:
+        try:
+            payload = telemetry_queue.get() # blocking call, waits for new data from the main thread
+            data = payload['data_dict']
+            current_time = payload['time']
+
+            #uploading data to firebase
+            firebase_manager.upload_data(data)
+            print("[CL-T] Data uploaded to Firebase")
+
+            #getting the live thresholds and update global variabile 'active_thresholds'
+            fetched_thresholds = firebase_manager.get_thresholds()
+            if fetched_thresholds:
+                active_thresholds = fetched_thresholds
+            
+            #evaluate sensors for push notifications
+            if active_thresholds:
+                evaluate_sensor(data.get('temperature_c'), 'temperature_c', 'Temperature', '°C', current_time, active_thresholds)
+                evaluate_sensor(data.get('humidity_percent'), 'humidity_percent', 'Humidity', '%', current_time, active_thresholds)
+                evaluate_sensor(data.get('light_lux'), 'light_lux', 'Light Level', 'lux', current_time, active_thresholds)
+                evaluate_sensor(data.get('co2_ppm'), 'co2_ppm', 'CO2 Level', 'ppm', current_time, active_thresholds)
+                evaluate_sensor(data.get('soil_moisture_percent'), 'soil_moisture_percent', 'Soil Moisture', '%', current_time, active_thresholds)
+                evaluate_sensor(data.get('vpd_kpa'), 'vpd_kpa', 'VPD', 'kPa', current_time, active_thresholds)
+            telemetry_queue.task_done() # mark the task as done after processing
+        except Exception as e:
+            print(f"Error in cloud worker thread: {e}")
+            
+# starting the cloud worker thread
+print("Starting cloud worker thread for Firebase upload and notifications...")
+cloud_thread = threading.Thread(target=cloud_worker_task, daemon=True)
+cloud_thread.start()
+
+# main loop - runs on another thread, responsible for reading the sensors, displaying on OLED and sending data to the cloud worker thread
 while True:
     try:
         current_time = time.time() # get the current time, used for checking cooldowns before sending notifications 
@@ -237,9 +274,15 @@ while True:
                 'co2_ppm': co2_ppm,
                 'soil_moisture_percent': soil_moisture_level,
                 'vpd_kpa': vpd_value,
+                'timestamp': str(datetime.now()),
                 'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
             }
-            firebase_manager.upload_data(data)     
+            
+            # non-blocking put to the telemtry queue, responsible for sending data to the cloud worker thread for firebase upload and notification evaluation
+            if not telemetry_queue.full():
+                telemetry_queue.put({'data_dict': data, 'time': current_time})
+            else:
+                print("Warning - your network is slow or down. Dropping telemetry packet to prevent overflow")
         
         # OLED logic to display readings
         with canvas(device) as draw:
@@ -250,22 +293,20 @@ while True:
             draw.text((70, 0), f"Light: {light_level:.1f} lx" if light_level is not None else "Light: ERR", fill="white")
             draw.text((70, 16), f"VPD: {vpd_value:.2f} kPa" if vpd_value is not None else "VPD: ERR", fill="white")
 
-        print(f"Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%, VPD: {vpd_value:.2f} kPa")
+        print(f"[HW-T] Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%, VPD: {vpd_value:.2f} kPa")
 
-        # getting the live thresholds from firebase to compare with the sensor readings and trigger notifications if thresholds are exceeded
-        thresholds = firebase_manager.get_thresholds() 
+        # fan actuator control logic based on temperature readings
+        if active_thresholds and temperature_c is not None:
+            max_temp = active_thresholds.get('temperature_c', {}).get("max", 30) # default max temp threshold is 30C if not available in firebase
 
-        # evaluating each sensor reading against the thresholds and triggering notifications if necessary
-        evaluate_sensor(temperature_c, 'temperature_c', 'Temperature', '°C', current_time, thresholds)
-        evaluate_sensor(humidity, 'humidity_percent', 'Humidity', '%', current_time, thresholds)
-        evaluate_sensor(light_level, 'light_lux', 'Light Level', 'lx', current_time, thresholds)
-        evaluate_sensor(co2_ppm, 'co2_ppm', 'CO2 Level', 'ppm', current_time, thresholds)
-        evaluate_sensor(soil_moisture_level, 'soil_moisture_percent', 'Soil Moisture', '%', current_time, thresholds)
-        evaluate_sensor(vpd_value, 'vpd_kpa', 'VPD', 'kPa', current_time, thresholds)   
+            if temperature_c >= max_temp:
+                print("Temperature exceeds max threshold, setting fan to max speed")
+                override_pi_fan(4) # set fan to max speed
+            elif temperature_c <= (max_temp - 1.0): # if temp is close to the max
+                override_pi_fan(0) # turn off the fan
 
     except Exception as error:
         print(f"Error in main loop: {error}")
 
     time.sleep(SAMPLE_INTERVAL)
     print("")
-
