@@ -19,6 +19,7 @@ import {db} from "../config/firebaseConfig";
 // preferences imports
 import { usePreferences} from "../context/preferences_context";
 
+// structure of an alert item in the database
 interface AlertItem {
     id: string;
     timestamp: number;
@@ -26,6 +27,24 @@ interface AlertItem {
     type: "critical" | "warning" | "info";
     parameter: string;
 }
+
+// config for alert types and icon parameters
+const ALERT_CONFIG = {
+    types: {
+        critical: {color: "#EF4444"},
+        warning: {color: "#F59E04"},
+        info: {color: "#3B82F6"},
+    }, 
+    parameters: {
+        vpd_value: {icon: "chart-line-variant"},
+        temperature_c: {icon: "thermometer"},
+        humidity_percent: {icon: "air-humidifier"},
+        light_lux: {icon: "lightbulb"},
+        soil_moisture_percent: {icon: "water-percent"},
+        co2_ppm: {icon: "molecule-co2"},
+        system: {icon: "raspberry-pi"},
+    },
+} as const;
 
 export default function AlertsScreen() {
     const [loading, setLoading] = useState(true);
@@ -62,20 +81,11 @@ export default function AlertsScreen() {
     }, []);
 
     // helper function to pick icons and colors based on the alert type and parameter
-    const getAlertUI =(type: string, parameter: string) => {
-        let color = theme.primary; 
-        if (type === "critical") color = "#EF4444"; // red for critical
-        if (type === "warning") color = "#F59E0B"; // orange for warning
-        if (type === "info") color = "#3B82F6"; // blue for info
-        let icon = "bell-outline";
-        if (parameter === "vpd_value") icon = "chart-line-variant";
-        if (parameter === "temperature_c") icon = "thermometer";
-        if (parameter === "humidity_percent") icon = "air-humidifier";
-        if (parameter === "light_lux") icon = "lightbulb";
-        if (parameter === "soil_moisture_percent") icon = "water-percent";
-        if (parameter === "co2_ppm") icon = "molecule-co2";
-        if (parameter === "system") icon = "raspberry-pi";
-        return {color, icon};
+    const getAlertUI = (type: AlertItem["type"], parameter: string) => {
+        return {
+            color: ALERT_CONFIG.types[type]?.color || theme.primary, // default to primary color if type is unknown
+            icon: ALERT_CONFIG.parameters[parameter as keyof typeof ALERT_CONFIG.parameters]?.icon || "bell-outline", // default icon if parameter is unknown
+        };
     };
 
     // format timestamp to a readable string
