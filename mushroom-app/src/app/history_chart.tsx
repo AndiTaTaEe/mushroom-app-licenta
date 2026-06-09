@@ -63,57 +63,54 @@ export default function HistoryChartScreen() {
 
   const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
 
-  // state for tooltip visibility and content
-  const [tempTooltip, setTempTooltip] = useState<TooltipState>({
+  // state to manage the visibility and content of the tooltips
+  // we have one tooltip for each parameter we want to display
+  type TooltipKeys = 'temperature' | 'humidity' | 'light' | 'soil' | 'co2' | 'vpd';
+  // default state for all tooltips
+  const defaultTooltipState: TooltipState = {
     x: 0,
     y: 0,
     value: 0,
     visible: false,
-  });
+  };
 
-  const [humTooltip, setHumTooltip] = useState<TooltipState>({
-    x: 0,
-    y: 0,
-    value: 0,
-    visible: false,
-  });
-
-  const [lightTooltip, setLightTooltip] = useState<TooltipState>({
-    x: 0,
-    y: 0,
-    value: 0,
-    visible: false,
-  });
-
-  const [soilTooltip, setSoilTooltip] = useState<TooltipState>({
-    x: 0,
-    y: 0,
-    value: 0,
-    visible: false,
-  });
-
-  const [co2Tooltip, setCo2Tooltip] = useState<TooltipState>({
-    x: 0,
-    y: 0,
-    value: 0,
-    visible: false,
-  });
-
-  const [vpdTooltip, setVpdTooltip] = useState<TooltipState>({
-    x: 0,
-    y: 0,
-    value: 0,
-    visible: false,
+  // initialiazing the tooltips state with default state for each parameter, we will update when the user clicks on a data point in the chart
+  const [tooltips, setTooltips] = useState<Record<TooltipKeys, TooltipState>>({
+    temperature: {...defaultTooltipState},
+    humidity: {...defaultTooltipState},
+    light: {...defaultTooltipState},
+    soil: {...defaultTooltipState},
+    co2: {...defaultTooltipState},
+    vpd: {...defaultTooltipState},
   });
 
   // helper function to hide all the tooltips
   const hideAllTooltips = () => {
-    setTempTooltip((prev) => ({ ...prev, visible: false }));
-    setHumTooltip((prev) => ({ ...prev, visible: false }));
-    setLightTooltip((prev) => ({ ...prev, visible: false }));
-    setSoilTooltip((prev) => ({ ...prev, visible: false }));
-    setCo2Tooltip((prev) => ({ ...prev, visible: false }));
-    setVpdTooltip((prev) => ({ ...prev, visible: false }));
+    setTooltips((prev) => 
+      Object.fromEntries(
+        // iterate thorugh all the tooltips and set their visible to false
+        // Object.entries returns an array of [k, v] pairs, so we can map through it and update the visible propery for each tooltip
+        (Object.entries(prev) as [TooltipKeys, TooltipState][]).map(
+          ([key, state]) => [key, {...state, visible: false}]
+        )
+      ) as Record<TooltipKeys, TooltipState>
+    );
+  };
+
+  // helper function to set a specific tooltip as active and hide the others
+  const setActiveTooltip = (key: TooltipKeys, data: {x: number, y: number, value: number}) => {
+    // we set the clicked tooltip as visible
+    setTooltips((prev) => {
+      const updatedTooltip = {...prev};
+
+      // set the active tooltip
+      updatedTooltip[key] = {x: data.x, y: data.y, value: data.value, visible: true};
+      // hide other tooltips
+      (Object.keys(updatedTooltip) as TooltipKeys[]).filter((k) => k !== key).forEach((k) => {
+        updatedTooltip[k] = {...updatedTooltip[k], visible: false};
+      });
+      return updatedTooltip;
+    });
   };
 
   // fetching the historical data from Firebase 
@@ -467,20 +464,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle} // adding extra right padding to make room for the tooltip
                 onDataPointClick={(data) => {
-                  setVpdTooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the others tooltip for no overlapping
-                  setHumTooltip((prev) => ({ ...prev, visible: false }));
-                  setLightTooltip((prev) => ({ ...prev, visible: false }));
-                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("vpd", data);
                 }}
-                decorator={() => renderTooltip(vpdTooltip, "kPa")}
+                decorator={() => renderTooltip(tooltips.vpd, "kPa")}
               />
             </View>
             {/* temperature chart */}
@@ -505,20 +491,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle}
                 onDataPointClick={(data) => {
-                  setTempTooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the others tooltip for no overlapping
-                  setHumTooltip((prev) => ({ ...prev, visible: false }));
-                  setLightTooltip((prev) => ({ ...prev, visible: false }));
-                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
-                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("temperature", data);
                 }}
-                decorator={() => renderTooltip(tempTooltip, tempUnit)}
+                decorator={() => renderTooltip(tooltips.temperature, tempUnit)}
               />
             </View>
             {/* humidity chart */}
@@ -543,20 +518,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle}
                 onDataPointClick={(data) => {
-                  setHumTooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the other tooltip for no overlapping
-                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
-                  setLightTooltip((prev) => ({ ...prev, visible: false }));
-                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("humidity", data);
                 }}
-                decorator={() => renderTooltip(humTooltip, "%")}
+                decorator={() => renderTooltip(tooltips.humidity, "%")}
               />
             </View>
             {/* light level chart */}
@@ -580,20 +544,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle}
                 onDataPointClick={(data) => {
-                  setLightTooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the other tooltip for no overlapping
-                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
-                  setHumTooltip((prev) => ({ ...prev, visible: false }));
-                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("light", data);
                 }}
-                decorator={() => renderTooltip(lightTooltip, "lux")}
+                decorator={() => renderTooltip(tooltips.light, "lx")}
               />
             </View>
             {/* soil moisture chart */}
@@ -618,20 +571,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle}
                 onDataPointClick={(data) => {
-                  setSoilTooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the other tooltip for no overlapping
-                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
-                  setLightTooltip((prev) => ({ ...prev, visible: false }));
-                  setHumTooltip((prev) => ({ ...prev, visible: false }));
-                  setCo2Tooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("soil", data);
                 }}
-                decorator={() => renderTooltip(soilTooltip, "%")}
+                decorator={() => renderTooltip(tooltips.soil, "%")}
               />
             </View>
             {/* co2 levels chart */}
@@ -655,20 +597,9 @@ export default function HistoryChartScreen() {
                 bezier // for smooth curves
                 style={styles.chartStyle}
                 onDataPointClick={(data) => {
-                  setCo2Tooltip({
-                    x: data.x,
-                    y: data.y,
-                    value: data.value,
-                    visible: true,
-                  });
-                  //hide the other tooltip for no overlapping
-                  setVpdTooltip((prev) => ({ ...prev, visible: false }));
-                  setTempTooltip((prev) => ({ ...prev, visible: false }));
-                  setLightTooltip((prev) => ({ ...prev, visible: false }));
-                  setHumTooltip((prev) => ({ ...prev, visible: false }));
-                  setSoilTooltip((prev) => ({ ...prev, visible: false }));
+                  setActiveTooltip("co2", data);
                 }}
-                decorator={() => renderTooltip(co2Tooltip, "ppm")}
+                decorator={() => renderTooltip(tooltips.co2, "ppm")}
               />
             </View>
             {/* export data to CSV button */}
