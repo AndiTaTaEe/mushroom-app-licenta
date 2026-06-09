@@ -19,6 +19,9 @@ import {db} from "../config/firebaseConfig";
 // preferences imports
 import { usePreferences} from "../context/preferences_context";
 
+// import constants
+import {COLORS, THRESHOLDS, FIREBASE_PATHS} from "../constants/theme";
+
 // structure of an alert item in the database
 interface AlertItem {
     id: string;
@@ -31,9 +34,9 @@ interface AlertItem {
 // config for alert types and icon parameters
 const ALERT_CONFIG = {
     types: {
-        critical: {color: "#EF4444"},
-        warning: {color: "#F59E04"},
-        info: {color: "#3B82F6"},
+        critical: {color: COLORS.critical},
+        warning: {color: COLORS.warning},
+        info: {color: COLORS.info},
     }, 
     parameters: {
         vpd_value: {icon: "chart-line-variant"},
@@ -54,7 +57,7 @@ export default function AlertsScreen() {
 
     useEffect(() => {
         // create a query to fetch the last 30 alerts from the db
-        const alertsRef = query(ref(db, "proiect-licenta/alerts"), limitToLast(30));
+        const alertsRef = query(ref(db, FIREBASE_PATHS.ALERTS), limitToLast(THRESHOLDS.MAX_ALERTS_DISPLAY));
 
         const unsubscribe = onValue(alertsRef, (snapshot) => {
             const data = snapshot.val();

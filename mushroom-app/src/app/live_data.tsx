@@ -17,6 +17,7 @@ import { db } from "../config/firebaseConfig";
 
 // import for preferences context
 import { usePreferences } from "../context/preferences_context";
+import {COLORS, THRESHOLDS, FIREBASE_PATHS, SENSOR_COLORS} from "../constants/theme";
 
 export default function LiveDataScreen() {
   const [loading, setLoading] = useState(true);
@@ -47,7 +48,7 @@ export default function LiveDataScreen() {
 
   // fetching sensor data from Firebase Realtime Database
   useEffect(() => {
-    const sensorRef = ref(db, "proiect-licenta/current_readings"); // current_readings is the root node where sensor data is stored
+    const sensorRef = ref(db, FIREBASE_PATHS.CURRENT_READINGS); // current_readings is the root node where sensor data is stored
 
     // listen for real-time updates
     const unsubscribe = onValue(
@@ -94,7 +95,7 @@ export default function LiveDataScreen() {
 
   // system status calculation logic
   // check if the difference between now and the last updated timestamp is greater than 5 minutes (300000 ms)
-  const isOffline = lastUpdated ? now - lastUpdated > 300000 : true; // if lastUpdates is null - consider it offline
+  const isOffline = lastUpdated ? now - lastUpdated > THRESHOLDS.OFFLINE_TIMEOUT_MS : true; // if lastUpdates is null - consider it offline
   let timeAgoText = "Waiting for data...";
   if (lastUpdated) {
     const diffInSeconds = Math.max(0, Math.floor((now - lastUpdated) / 1000));
@@ -161,12 +162,12 @@ export default function LiveDataScreen() {
               <MaterialCommunityIcons
                 name={isOffline ? "wifi-strength-off-outline" : "wifi-check"}
                 size={20}
-                color={isOffline ? "#EF4444" : "#10B981"}
+                color={isOffline ? COLORS.critical : COLORS.primary}
               />
               <Text
                 style={[
                   styles.healthStatusText,
-                  { color: isOffline ? "#EF4444" : "#10B981" },
+                  { color: isOffline ? COLORS.critical : COLORS.primary },
                 ]}
               >
                 {isOffline ? "System Offline" : "System Online"}
@@ -193,7 +194,7 @@ export default function LiveDataScreen() {
               value={sensorData.vpd_kpa}
               unit="kPa"
               iconName="chart-line-variant"
-              iconColor="#8B5CF6"
+              iconColor={SENSOR_COLORS.vpd}
               theme={theme}
             />
             <SensorCard
@@ -201,7 +202,7 @@ export default function LiveDataScreen() {
               value={displayTemp}
               unit={tempUnit}
               iconName="thermometer"
-              iconColor="#EF4444"
+              iconColor={SENSOR_COLORS.temperature}
               theme={theme}
             />
             <SensorCard
@@ -209,7 +210,7 @@ export default function LiveDataScreen() {
               value={sensorData.humidity_percent}
               unit="%"
               iconName="air-humidifier"
-              iconColor="#3B82F6"
+              iconColor={SENSOR_COLORS.humidity}
               theme={theme}
             />
             <SensorCard
@@ -217,7 +218,7 @@ export default function LiveDataScreen() {
               value={sensorData.light_lux}
               unit="lx"
               iconName="lightbulb"
-              iconColor="#F59E0B"
+              iconColor={SENSOR_COLORS.light}
               theme={theme}
             />
             <SensorCard
@@ -225,7 +226,7 @@ export default function LiveDataScreen() {
               value={sensorData.soil_moisture_percent}
               unit="%"
               iconName="water-percent"
-              iconColor="#10B981"
+              iconColor={SENSOR_COLORS.soil}
               theme={theme}
             />
             <SensorCard
@@ -233,7 +234,7 @@ export default function LiveDataScreen() {
               value={sensorData.co2_ppm}
               unit="ppm"
               iconName="molecule-co2"
-              iconColor="#64748B"
+              iconColor={SENSOR_COLORS.co2}
               theme={theme}
             />
           </View>

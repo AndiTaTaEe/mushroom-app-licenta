@@ -23,6 +23,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // import for preferences context
 import { usePreferences } from "../context/preferences_context";
+import {COLORS, THRESHOLDS, FIREBASE_PATHS, SENSOR_COLORS, TIME_UNITS} from "../constants/theme";
 
 // defining the screen width for the chart, to make it responsive
 const screenWidth = Dimensions.get("window").width;
@@ -117,8 +118,8 @@ export default function HistoryChartScreen() {
   useEffect(() => {
     //creating a query to fetch the last 250 readings from the Firebase, so we have enough for 7 days of data readings
     const historyRef = query(
-      ref(db, "proiect-licenta/past_readings"),
-      limitToLast(250),
+      ref(db, FIREBASE_PATHS.PAST_READINGS),
+      limitToLast(THRESHOLDS.MAX_HISTORICAL_READINGS),
     );
 
     const unsubscribe = onValue(
@@ -153,11 +154,11 @@ export default function HistoryChartScreen() {
 
     // define how far back we want to go based on the selected time range
     if (timeRange === "1H") {
-      cutoffTime = now - 60 * 60 * 1000; // 1 hour in ms
+      cutoffTime = now - TIME_UNITS.HOUR_MS; // 1 hour in ms
     } else if (timeRange === "24H") {
-      cutoffTime = now - 24 * 60 * 60 * 1000; // 24 hrs in ms
+      cutoffTime = now - TIME_UNITS.DAY_MS; // 24 hrs in ms
     } else if (timeRange === "7D") {
-      cutoffTime = now - 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+      cutoffTime = now - TIME_UNITS.WEEK_MS; // 7 days in ms
     }
 
     // filtering out the readings that are older than the cutoff time
@@ -167,9 +168,9 @@ export default function HistoryChartScreen() {
     });
 
     // logic for adjusting the resolution based on the selected time range
-    let MAX_CHART_POINTS = 10; // default for 1h
-    if (timeRange === "24H") MAX_CHART_POINTS = 24; // 1 point per hour
-    if (timeRange === "7D") MAX_CHART_POINTS = 14; // 2 points per day
+    let MAX_CHART_POINTS: number = THRESHOLDS.MAX_CHART_POINTS_1H; // default for 1h
+    if (timeRange === "24H") MAX_CHART_POINTS = THRESHOLDS.MAX_CHART_POINTS_24H; // 1 point per hour
+    if (timeRange === "7D") MAX_CHART_POINTS = THRESHOLDS.MAX_CHART_POINTS_7D; // 2 points per day
 
     // if we have more readings than the max points for the chart, we reduce the number of points by taking every nth point, where n is the total number of readings divided by the max points
     // this way we can show a representative sample of the data without overcrowding the chart
@@ -258,7 +259,7 @@ export default function HistoryChartScreen() {
     propsForDots: {
       r: "5",
       strokeWidth: "2",
-      stroke: "#10B981",
+      stroke: COLORS.primary,
     },
   };
 
@@ -310,8 +311,8 @@ export default function HistoryChartScreen() {
 
       // fetching up to 1000 past readings to include in the CSV export
       const dataRef = query(
-        ref(db, "proiect-licenta/past_readings"),
-        limitToLast(1000),
+        ref(db, FIREBASE_PATHS.PAST_READINGS),
+        limitToLast(THRESHOLDS.MAX_EXPORT_READINGS),
       );
       const snapshot = await get(dataRef);
 
@@ -687,8 +688,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   buttonExport: {
-    backgroundColor: "#10B981",
-
+    backgroundColor: COLORS.primary,
     padding: 15,
     borderRadius: 8,
     flexDirection: "row",

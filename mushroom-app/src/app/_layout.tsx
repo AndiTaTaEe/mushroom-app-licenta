@@ -16,6 +16,9 @@ import { ThemeProvider, DarkTheme, DefaultTheme } from "@react-navigation/native
 // import for preferences context
 import { PreferencesProvider, usePreferences } from "../context/preferences_context";
 
+// import constants
+import {COLORS} from "../constants/theme";
+
 // main layout component of the app
 // accepting the user as a prop so we know the user's autentication state
 // if the user is logged in -> we show the main app with the bottom tab navigator and the screens + biometric authentication
@@ -77,7 +80,7 @@ function RootLayoutNav({user} : {user: User | null}) {
   if (user && !isUnlocked) {
     return (
       <View style={[styles.lockContainer, {backgroundColor: theme.background || "#0F172A"}]}>
-        <MaterialCommunityIcons name="fingerprint" size={80} color="10B981" />
+        <MaterialCommunityIcons name="fingerprint" size={80} color={COLORS.primary} />
         <Text style={[styles.title, {color: theme.text || "#F8FAFC"}]}>
           Farm Secured
         </Text>
@@ -86,7 +89,7 @@ function RootLayoutNav({user} : {user: User | null}) {
         </Text>
         <TouchableOpacity
           onPress={authenticateUser}
-          style={styles.authButton}
+          style={[styles.authButton, {backgroundColor: COLORS.primary}]}
         >
           <Text style={styles.unlockText}>Unlock</Text>
         </TouchableOpacity>

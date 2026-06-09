@@ -22,6 +22,9 @@ import { db } from "../config/firebaseConfig";
 // import for preferences context
 import { usePreferences } from "../context/preferences_context";
 
+// import constants
+import {COLORS, FIREBASE_PATHS} from "../constants/theme";
+
 // handler for determining how my app handles incoming notifications
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -112,7 +115,7 @@ export default function App() {
           console.log("Push notification token obtained:", token);
 
           // saving the token to Firebase Realtime db into 'admin' folder
-          const tokenRef = ref(db, "admin/push_token");
+          const tokenRef = ref(db, FIREBASE_PATHS.PUSH_TOKENS);
           set(tokenRef, token)
             .then(() =>
               console.log(
@@ -269,13 +272,13 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   liveButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: COLORS.primary,
   },
   historyButton: {
-    backgroundColor: "#3B82F6",
+    backgroundColor: COLORS.info,
   },
   settingsButton: {
-    backgroundColor: "#F59E0B",
+    backgroundColor: COLORS.warning,
   },
   buttonTextContainer: {
     marginLeft: 20,

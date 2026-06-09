@@ -1,33 +1,14 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// define the dynamic color palette based on the state of dark mode
-export const Colors = {
-  dark: {
-    background: "#0F172A",
-    card: "#1E293B",
-    text: "#F8FAFC",
-    subtext: "#94A3B8",
-    border: "#334155",
-    icon: "#94A3B8",
-    primary: "#10B981",
-  },
-  light: {
-    background: "#F8FAFC",
-    card: "#FFFFFF",
-    text: "#0F172A",
-    subtext: "#64748B",
-    border: "#F1F5F9",
-    icon: "#64748B",
-    primary: "#10B981",
-  },
-};
+// import constants
+import {LIGHT_THEME, DARK_THEME, Theme} from "../constants/theme";
 
 // interface for the preferences context
 interface PreferencesContextType {
   isFahrenheit: boolean;
   isDarkMode: boolean;
-  theme: typeof Colors.light;
+  theme: Theme;
   toggleTempUnit: () => void;
   toggleDarkMode: () => void;
 }
@@ -88,7 +69,7 @@ export const PreferencesProvider = ({
   };
 
   // determine the current theme based on the dark mode state
-  const activeTheme = isDarkMode ? Colors.dark : Colors.light;
+  const activeTheme = isDarkMode ? DARK_THEME : LIGHT_THEME;
 
   return (
     <PreferencesContext.Provider
