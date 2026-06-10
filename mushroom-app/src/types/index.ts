@@ -17,6 +17,7 @@ export interface FarmSettings {
     vpd_kpa: { min: number; max: number };
 }
 
+// structure of an alert item in the database
 export interface AlertItem {
     id: string;
     timestamp: number;

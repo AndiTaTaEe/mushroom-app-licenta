@@ -1,5 +1,4 @@
-import { limitToLast, onValue, query, ref, get } from "firebase/database";
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -13,38 +12,24 @@ import {
 import { LineChart } from "react-native-chart-kit";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { G, Rect, Text as SvgText } from "react-native-svg";
-import { db } from "../config/firebaseConfig";
-
-// imports for exporting the historical data to a CSV file
-import { File, Paths } from "expo-file-system";
-import * as Sharing from "expo-sharing";
-import { Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-
-// import services
-import { sensorService } from "../services/sensorService";
 
 // import for preferences context, types and constants
 import { usePreferences } from "../context/preferences_context";
-import {
-  COLORS,
-  THRESHOLDS,
-  FIREBASE_PATHS,
-  SENSOR_COLORS,
-  TIME_UNITS,
-} from "../constants/theme";
-import { PastReadings, TooltipState} from "../types/index";
+import { COLORS, THRESHOLDS, TIME_UNITS } from "../constants/theme";
+import { TooltipState } from "../types/index";
+
+// import custom hooks for fetching historical data and formatting timestamps
+import { useHistoricalData } from "../hooks/useHistoricalData";
+import { useFormatTime } from "../hooks/useFormatTime";
+import { useExportCSV } from "../hooks/useExportCSV";
 
 // defining the screen width for the chart, to make it responsive
 const screenWidth = Dimensions.get("window").width;
 
 export default function HistoryChartScreen() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   // states for the active time filters and massive raw array
   const [timeRange, setTimeRange] = useState<"1H" | "24H" | "7D">("1H"); // default to 1 hour
-  const [rawReadings, setRawReadings] = useState<PastReadings[]>([]);
 
   // states to hold the historical data for temperature and humidity
   const [labels, setLabels] = useState<string[]>([]);
@@ -56,6 +41,10 @@ export default function HistoryChartScreen() {
   const [vpdData, setVpdData] = useState<number[]>([]);
 
   const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
+
+  const { readings, loading, error } = useHistoricalData(); // using the custom hook to fetch the historical data and manage loading and error states
+  const { formatChartTime } = useFormatTime(); // using the custom hook to format the timestamps for the chart labels and tooltips
+  const { isExporting, exportToCSV } = useExportCSV(); // using the custom hook to handle exporting the data to CSV
 
   // state to manage the visibility and content of the tooltips
   // we have one tooltip for each parameter we want to display
@@ -124,30 +113,10 @@ export default function HistoryChartScreen() {
     });
   };
 
-  // fetching the historical data from Firebase
-  useEffect(() => {
-    //creating a query to fetch the last 250 readings from the Firebase, so we have enough for 7 days of data readings
-    setLoading(true);
-    setError(null);
-    const unsubscribe = sensorService.subscribeToHistoricalData(
-      (data) => {
-        setRawReadings(data);
-        setLoading(false);
-      }, 
-      (error) => {
-        console.error("Historical data error: ", error);
-        setError("Failed to load historical data. Please try again later.");
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
   // logic for filtering the raw readings based on the selected time range
   // runs every time the rawReadings or timeRange state changes, so we can update the displayed data accordingly
   useEffect(() => {
-    if (rawReadings.length === 0) return; // if there are no readings, we wont filter anythings
+    if (readings.length === 0) return; // if there are no readings, we wont filter anythings
     hideAllTooltips(); // hide any visible tooltips when the range changes (1h, 24h, 7d) to avoid showing tooltips for the wrong data points
     const now = Date.now();
     let cutoffTime = now;
@@ -162,7 +131,7 @@ export default function HistoryChartScreen() {
     }
 
     // filtering out the readings that are older than the cutoff time
-    let filteredReadings = rawReadings.filter((reading) => {
+    let filteredReadings = readings.filter((reading) => {
       const readingTime = new Date(reading.timestamp).getTime();
       return readingTime >= cutoffTime;
     });
@@ -196,13 +165,11 @@ export default function HistoryChartScreen() {
 
       if (!shouldShowLabel) return ""; // if we have too many points, return an empty string for the label to avoid clutter
 
-      // creating a date object from the timestamp to format the label accordingly
-      const dateObj = new Date(reading.timestamp);
-      // if the time range is 7 days, we show the date and time on the labels, otherwise we show only the time
-      if (timeRange === "7D") {
-        return `${dateObj.getDate()}/${dateObj.getMonth() + 1}`;
-      }
-      return `${dateObj.getHours()}:${dateObj.getMinutes().toString().padStart(2, "0")}`;
+      // format the timestamp into a readable time format for the x-axis labels using the custom hook
+      return formatChartTime(
+        reading.timestamp,
+        timeRange === "7D" ? "date" : "time",
+      );
     });
     setLabels(timeLabels);
 
@@ -232,7 +199,7 @@ export default function HistoryChartScreen() {
     setSoilMoistureData(soilMoistureValues);
     setCo2Data(co2Values);
     setVpdData(vpdValues);
-  }, [rawReadings, timeRange]); // we run this effect every time the rawReadings or timeRange state changes
+  }, [readings, timeRange]); // we run this effect every time the rawReadings or timeRange state changes
 
   // if the user preference is set to fahrenheit, we convert the temperature data from celsius to fahrenheit before displaying it on the chart
   const displayTemperatureData = isFahrenheit
@@ -304,74 +271,17 @@ export default function HistoryChartScreen() {
   };
 
   // function for exporting the historical data to a CSV file
-  const exportToCSV = async () => {
-    try {
-      // adding a loading state
-      setLoading(true);
-
-      // fetching up to 1000 past readings to include in the CSV export
-      const exportData = await sensorService.fetchHistoricalData(THRESHOLDS.MAX_EXPORT_READINGS);
-
-      if (exportData.length === 0) {
-        Alert.alert(
-          "No data to export",
-          "There are no historical readings available to export.",
-        );
-        return;
-      }
-
-      const tempCsvUnit = isFahrenheit ? "F" : "C";
-
-      // creating the csv header row
-      let csvString = `Timestamp,Temperature (${tempCsvUnit}),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n`;
-
-      // iterating through the created snapshot to build the rows
-      exportData.forEach((row) => {
-        // formatting the timestamp into a readable format; we create a fallback in case the timestamp is missing from the Firebase or invalid
-        const dateStr = row.timestamp
-          ? new Date(row.timestamp).toLocaleDateString() +
-            " " +
-            new Date(row.timestamp).toTimeString()
-          : "Unknown Timestamp"; // the timestamp in firebase is stored as date + time, so we convert it accordingly
-
-        // convert the raw firebase temp to fahrenheit if the user preference is set to fahrenheit, otherwise keep it in celsius
-        const exportTemp = isFahrenheit
-          ? ((row.temperature_c * 9) / 5 + 32).toFixed(1)
-          : row.temperature_c;
-        csvString += `${dateStr},${exportTemp},${row.humidity_percent},${row.light_lux},${row.soil_moisture_percent},${row.co2_ppm},${row.vpd_kpa}\n`;
-      });
-
-      // defining the file path for the CSV file
-      const fileName = `Mushroom_Farm_Data_${new Date().getTime()}.csv`;
-      const file = new File(Paths.document, fileName);
-
-      // writing the CSV string to the file
-      file.write(csvString);
-
-      // sharing the file using the device's sharing options
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        // if sharing is available, we share the file
-        await Sharing.shareAsync(file.uri, {
-          mimeType: "text/csv",
-          dialogTitle: "Export mushroom farm data",
-          UTI: "public.comma-separated-values-text",
-        });
-      } else {
-        Alert.alert(
-          "Error sharing file",
-          "Sharing is not available on this device.",
-        );
-      }
-    } catch (error) {
-      console.error("CSV export error: ", error);
-      Alert.alert(
-        "Error exporting data",
-        "An error occurred while exporting the data. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
+  const handleExportCSV = () => {
+    exportToCSV({
+      isFahrenheit,
+      maxReadings: THRESHOLDS.MAX_EXPORT_READINGS,
+      onSuccess: () => {
+        console.log("Data exported successfully");
+      },
+      onError: (error) => {
+        console.error("Error exporting data: ", error);
+      },
+    });
   };
 
   return (
@@ -598,14 +508,16 @@ export default function HistoryChartScreen() {
               />
             </View>
             {/* export data to CSV button */}
-            <TouchableOpacity style={styles.buttonExport} onPress={exportToCSV}>
+            <TouchableOpacity style={[styles.buttonExport, {backgroundColor: COLORS.primary}]} onPress={handleExportCSV} disabled={isExporting}>
               <MaterialCommunityIcons
                 name="file-export-outline"
                 size={24}
                 color="white"
                 style={{ marginRight: 8 }}
               />
-              <Text style={styles.buttonExportText}>Export Data to CSV</Text>
+              <Text style={styles.buttonExportText}>
+                {isExporting ? "Exporting..." : "Export Data to CSV"}
+              </Text>
             </TouchableOpacity>
           </View>
         )}

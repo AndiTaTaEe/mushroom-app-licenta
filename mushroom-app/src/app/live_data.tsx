@@ -1,6 +1,5 @@
 import { useRouter } from "expo-router";
-import { onValue, ref } from "firebase/database";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -13,90 +12,41 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SensorCard } from "../components/sensor-card";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { db } from "../config/firebaseConfig";
 
-// import sensor service
-import { sensorService} from "../services/sensorService";
+// import custom hooks
+import {useSensorData} from "../hooks/useSensorData";
+import {useSystemStatus} from "../hooks/useSystemStatus";
+import {useTemperatureConversion} from "../hooks/useTemperatureConversion";
 
 // import for preferences context, constants and types
 import { usePreferences } from "../context/preferences_context";
-import {COLORS, THRESHOLDS, FIREBASE_PATHS, SENSOR_COLORS} from "../constants/theme";
+import {COLORS, THRESHOLDS, SENSOR_COLORS} from "../constants/theme";
 import {SensorData} from "../types/index";
 
 export default function LiveDataScreen() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-
   const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
 
-  // state to hold the system's last updated timestamp and the current time to calculate how long ago the data was updated
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  // using custom hooks to get live sensor data, system status and temp conversion
+  const {sensorData, loading, error, lastUpdated} = useSensorData();
+  const {isOnline, timeAgoText} = useSystemStatus(lastUpdated);
+  const {displayTemp, unit: tempUnit} = useTemperatureConversion(sensorData.temperature_c, isFahrenheit);
 
-  const [sensorData, setSensorData] = useState<SensorData>({
-    temperature_c: 0,
-    humidity_percent: 0,
-    light_lux: 0,
-    soil_moisture_percent: 0,
-    co2_ppm: 0,
-    vpd_kpa: 0,
-  });
-
-  // effect to update the current time every 10 seconds so "last updated" can be calculated in real-time
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(Date.now());
-    }, 10000); // update every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  // fetching sensor data from Firebase Realtime Database
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    // listen for real-time updates
-    const unsubscribe = sensorService.subscribeToLiveData(
-      (data) => {
-        setSensorData(data);
-        setLastUpdated(data.last_updated || null);
-        setLoading(false);
-      }, 
-      (error) => {
-        console.error("Sensor data error: ", error);
-        setError("Failed to load sensor data. Please try again later.");
-        setLoading(false);
-      }
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={[styles.safeArea, { backgroundColor: theme.background }]}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.subtext }]}>
+            Loading sensor data...
+          </Text>
+        </View>
+      </SafeAreaView>
     );
-    // cleanup function to unsubscribe from listener when component unmounts
-    return () => unsubscribe();
-  }, []);
-
-  // converting temperature to fahrenheit if the user preference is set to fahrenheit
-  const displayTemp = sensorData.temperature_c ? isFahrenheit ? ((sensorData.temperature_c * 9) / 5 + 32).toFixed(1) : sensorData.temperature_c.toFixed(1) : "--";
-
-  const tempUnit = isFahrenheit ? "°F" : "°C";
-
-  // system status calculation logic
-  // check if the difference between now and the last updated timestamp is greater than 5 minutes (300000 ms)
-  const isOffline = lastUpdated ? now - lastUpdated > THRESHOLDS.OFFLINE_TIMEOUT_MS : true; // if lastUpdates is null - consider it offline
-  let timeAgoText = "Waiting for data...";
-  if (lastUpdated) {
-    const diffInSeconds = Math.max(0, Math.floor((now - lastUpdated) / 1000));
-    if (diffInSeconds < 60) {
-      timeAgoText = `Updated ${diffInSeconds} s ago`;
-    } else if (diffInSeconds < 3600) {
-      const diffInMinutes = Math.floor(diffInSeconds / 60);
-      timeAgoText = `Updated ${diffInMinutes} m ago`;
-    } else if (diffInSeconds < 86400) {
-      const diffInHours = Math.floor(diffInSeconds / 3600);
-      timeAgoText = `Updated ${diffInHours} h ago`;
-    } else {
-      const diffInDays = Math.floor(diffInSeconds / 86400);
-      timeAgoText = `Updated ${diffInDays} d ago`;
-    }
   }
-
+ 
   return (
     <SafeAreaView
       style={[styles.safeArea, { backgroundColor: theme.background }]}
@@ -131,46 +81,46 @@ export default function LiveDataScreen() {
         </View>
 
         {/* system status indicator */}
-        {!loading && (
           <View
             style={[
               styles.healthBanner,
               {
-                backgroundColor: isOffline
-                  ? "rgba(239, 68, 68, 0.1)"
-                  : "rgba(16, 185, 129, 0.1)",
+                backgroundColor: isOnline
+                  ? "rgba(16, 185, 129, 0.1)"
+                  : "rgba(239, 68, 68, 0.1)",
               },
             ]}
           >
             <View style={styles.healthBannerHeader}>
               <MaterialCommunityIcons
-                name={isOffline ? "wifi-strength-off-outline" : "wifi-check"}
+                name={isOnline ? "wifi-check" : "wifi-strength-off-outline"}
                 size={20}
-                color={isOffline ? COLORS.critical : COLORS.primary}
+                color={isOnline ? COLORS.primary : COLORS.critical}
               />
               <Text
                 style={[
                   styles.healthStatusText,
-                  { color: isOffline ? COLORS.critical : COLORS.primary },
+                  { color: isOnline ? COLORS.primary : COLORS.critical },
                 ]}
               >
-                {isOffline ? "System Offline" : "System Online"}
+                {isOnline ? "System Online" : "System Offline"}
               </Text>
             </View>
             <Text style={{ color: theme.subtext, fontSize: 12, marginTop: 4 }}>
               {timeAgoText}
             </Text>
           </View>
-        )}
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[styles.loadingText, { color: theme.subtext }]}>
-              Loading sensor data...
-            </Text>
-          </View>
-        ) : (
+          {/* error message display if there's an error fetching sensor data */}
+          {error && (
+            <View style={[styles.errorBanner, { backgroundColor: "rgba(239, 68, 68, 0.1)" }]}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={20} color={COLORS.critical} />
+              <Text style={{ color: COLORS.critical, marginLeft: 8 }}>
+                {error}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.grid}>
             {/* rendering sensor cards with sensor data */}
             <SensorCard
@@ -222,7 +172,6 @@ export default function LiveDataScreen() {
               theme={theme}
             />
           </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -278,6 +227,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     marginLeft: 6,
+  },
+   errorBanner: {
+    flexDirection: "row",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    alignItems: "center",
   },
   loadingContainer: {
     marginTop: 100,
