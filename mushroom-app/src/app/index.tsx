@@ -15,15 +15,11 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 
-// firebase imports for sending push notification token to the database
-import { ref, set } from "firebase/database";
-import { db } from "../config/firebaseConfig";
-
 // import for preferences context
 import { usePreferences } from "../context/preferences_context";
 
 // import constants
-import { COLORS, FIREBASE_PATHS } from "../constants/theme";
+import { COLORS } from "../constants/theme";
 
 // import service
 import { sensorService } from "../services/sensorService";

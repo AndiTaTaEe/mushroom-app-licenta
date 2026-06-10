@@ -16,17 +16,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// firebase database imports
-import { ref, update } from "firebase/database";
-import { db } from "../config/firebaseConfig";
-
 // firebase imports for authentication
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
 // import for preferences context 
 import { usePreferences } from "../context/preferences_context";
-
+import { COLORS, LIGHT_THEME, Theme } from "../constants/theme";
 // import services
 import { sensorService } from "../services/sensorService";
 
@@ -205,7 +201,7 @@ export default function SettingsScreen() {
               <MaterialCommunityIcons
                 name="home-thermometer-outline"
                 size={24}
-                color="#10B981"
+                color={COLORS.primary}
               />
               <Text style={[styles.cardTitle, { color: theme.text }]}> Farm Thresholds</Text>
             </View>
@@ -270,7 +266,7 @@ export default function SettingsScreen() {
               <MaterialCommunityIcons
                 name="cog-outline"
                 size={24}
-                color="#10B981"
+                color={COLORS.primary}
               />
               <Text style={[styles.cardTitle, { color: theme.text }]}> App Preferences </Text>
             </View>
@@ -293,7 +289,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
               <Switch
-                trackColor={{ false: "#E2E8F0", true: "#10B981" }}
+                trackColor={{ false: "#E2E8F0", true: COLORS.primary }}
                 thumbColor={"#FFFFFF"}
                 onValueChange={toggleDarkMode}
                 value={isDarkMode}
@@ -318,7 +314,7 @@ export default function SettingsScreen() {
                 </View>
               </View>
               <Switch
-                trackColor={{ false: "#E2E8F0", true: "10B981" }}
+                trackColor={{ false: "#E2E8F0", true: COLORS.primary }}
                 thumbColor={"#FFFFFF"}
                 onValueChange={toggleTempUnit}
                 value={isFahrenheit}
@@ -402,14 +398,14 @@ const styles = StyleSheet.create({
   toText: { marginHorizontal: 8, color: "#94A3B8", fontWeight: "500" },
 
   saveButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: COLORS.primary,
     flexDirection: "row",
     height: 50,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
-    shadowColor: "#10B981",
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,

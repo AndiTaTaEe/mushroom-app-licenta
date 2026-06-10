@@ -16,7 +16,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // import for preferences context, types and constants
 import { usePreferences } from "../context/preferences_context";
-import { COLORS, THRESHOLDS, TIME_UNITS } from "../constants/theme";
+import { COLORS, THRESHOLDS, TIME_UNITS, SENSOR_COLORS } from "../constants/theme";
 import { TooltipState } from "../types/index";
 
 // import custom hooks for fetching historical data and formatting timestamps
@@ -364,7 +364,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#8B5CF6" },
+                propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.vpd },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle} // adding extra right padding to make room for the tooltip
@@ -391,7 +391,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#EF4444" },
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.temperature },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle}
@@ -418,7 +418,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#3B82F6" },
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.humidity },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle}
@@ -444,7 +444,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#F59E0B" },
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.light },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle}
@@ -471,7 +471,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#10B981" },
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.soil },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle}
@@ -497,7 +497,7 @@ export default function HistoryChartScreen() {
                 chartConfig={{
                   ...chartConfig,
                   color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})`,
-                  propsForDots: { r: "4", strokeWidth: "2", stroke: "#64748B" },
+                  propsForDots: { r: "4", strokeWidth: "2", stroke: SENSOR_COLORS.co2 },
                 }}
                 bezier // for smooth curves
                 style={styles.chartStyle}

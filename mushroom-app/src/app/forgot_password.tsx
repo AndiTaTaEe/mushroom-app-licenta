@@ -14,6 +14,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// preferences imports and constants
+import { usePreferences } from "../context/preferences_context";
+import { COLORS, LIGHT_THEME, Theme } from "../constants/theme";
+
 // firebase imports for forgot password flow
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
@@ -22,6 +26,8 @@ export default function ForgotPassScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false); // showing loading indicator during password reset process
+  const {isDarkMode, theme} = usePreferences(); // getting the user's dark mode preference from the context
+
 
   // function to handle password reset
   const handleForgotPassword = async () => {
@@ -74,11 +80,11 @@ export default function ForgotPassScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle= {isDarkMode ? "light-content" : "dark-content"} backgroundColor= {theme.background} />
 
       {/* back button */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-        <MaterialCommunityIcons name="arrow-left" size={28} color="#0F172A" />
+        <MaterialCommunityIcons name="arrow-left" size={28} color={theme.text} />
       </TouchableOpacity>
 
       <KeyboardAvoidingView
@@ -86,7 +92,7 @@ export default function ForgotPassScreen() {
         style={styles.keyboardView}
       >
         <View style={styles.headerContainer}>
-          <MaterialCommunityIcons name="lock-reset" size={60} color="10B981" />
+          <MaterialCommunityIcons name="lock-reset" size={60} color={COLORS.primary} />
           <Text style={styles.title}> Reset password </Text>
           <Text style={styles.subtitle}>
             Enter your email address and we'll send you instructions to reset
@@ -99,13 +105,13 @@ export default function ForgotPassScreen() {
             <MaterialCommunityIcons
               name="email-outline"
               size={24}
-              color="#94A3B8"
+              color={theme.subtext}
               style={styles.inputIcon}
             />
             <TextInput
               style={styles.input}
               placeholder="Email address"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={theme.subtext}
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
@@ -129,7 +135,7 @@ export default function ForgotPassScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F8FAFC" },
+  container: { flex: 1, backgroundColor: LIGHT_THEME.background },
   backButton: {
     position: "absolute",
     top: 50,

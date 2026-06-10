@@ -157,7 +157,7 @@ export default function RootLayout() {
           backgroundColor: "#F8FAFC",
         }}
       >
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
     textAlign: "center"
   },
   authButton: {
-    backgroundColor: "#10B981",
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 10

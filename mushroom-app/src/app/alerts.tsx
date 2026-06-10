@@ -12,10 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-// firebase imports
-import { limitToLast, onValue, query, ref } from "firebase/database";
-import { db } from "../config/firebaseConfig";
-
 // import service
 import { alertService } from "../services/alertService";
 
@@ -27,7 +23,7 @@ import { usePreferences } from "../context/preferences_context";
 import { AlertItem } from "../types/index";
 
 // import constants
-import { COLORS, THRESHOLDS, FIREBASE_PATHS } from "../constants/theme";
+import { COLORS} from "../constants/theme";
 
 // config for alert types and icon parameters
 const ALERT_CONFIG = {
