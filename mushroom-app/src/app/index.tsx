@@ -23,7 +23,10 @@ import { db } from "../config/firebaseConfig";
 import { usePreferences } from "../context/preferences_context";
 
 // import constants
-import {COLORS, FIREBASE_PATHS} from "../constants/theme";
+import { COLORS, FIREBASE_PATHS } from "../constants/theme";
+
+// import service
+import { sensorService } from "../services/sensorService";
 
 // handler for determining how my app handles incoming notifications
 Notifications.setNotificationHandler({
@@ -115,8 +118,8 @@ export default function App() {
           console.log("Push notification token obtained:", token);
 
           // saving the token to Firebase Realtime db into 'admin' folder
-          const tokenRef = ref(db, FIREBASE_PATHS.PUSH_TOKENS);
-          set(tokenRef, token)
+          sensorService
+            .savePushToken(token)
             .then(() =>
               console.log(
                 "Push token saved to Firebase Realtime DB in 'admin/push_token'",
@@ -156,10 +159,12 @@ export default function App() {
   const handleSettingsPress = () => {
     console.log("Navigating to Settings screen...");
     router.push("/settings");
-  }
+  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.background }]}
+    >
       <StatusBar
         barStyle={isDarkMode ? "light-content" : "dark-content"}
         backgroundColor={theme.background}
@@ -173,7 +178,9 @@ export default function App() {
           color={theme.primary}
           style={styles.icon}
         />
-        <Text style={[styles.title, { color: theme.text }]}>MushroomMonitor</Text>
+        <Text style={[styles.title, { color: theme.text }]}>
+          MushroomMonitor
+        </Text>
       </View>
 
       {/* buttons section */}
@@ -213,7 +220,7 @@ export default function App() {
         </TouchableOpacity>
 
         {/* settings */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.button, styles.settingsButton]}
           activeOpacity={0.8}
           onPress={handleSettingsPress}
@@ -225,10 +232,11 @@ export default function App() {
           />
           <View style={styles.buttonTextContainer}>
             <Text style={styles.buttonTitle}>Settings</Text>
-            <Text style={styles.buttonSubtitle}>Configure your preferences</Text>
+            <Text style={styles.buttonSubtitle}>
+              Configure your preferences
+            </Text>
           </View>
         </TouchableOpacity>
-
       </View>
     </SafeAreaView>
   );

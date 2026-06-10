@@ -24,8 +24,11 @@ import { db } from "../config/firebaseConfig";
 import { signOut } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
-// import for preferences context
+// import for preferences context 
 import { usePreferences } from "../context/preferences_context";
+
+// import services
+import { sensorService } from "../services/sensorService";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -85,11 +88,9 @@ export default function SettingsScreen() {
         },
       };
 
-      // pointing to the location in the db where the thresholds are stored and updated
-      const settingsRef = ref(db, "proiect-licenta/farm_settings");
-
+  
       // update the database
-      await update(settingsRef, newThresholds);
+      await sensorService.updateFarmSettings(newThresholds);
       Alert.alert(
         "Success",
         "Thresholds updated successfully. The Raspberry Pi will apply these immediately.",

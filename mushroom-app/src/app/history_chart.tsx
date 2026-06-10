@@ -21,33 +21,26 @@ import * as Sharing from "expo-sharing";
 import { Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
-// import for preferences context
+// import services
+import { sensorService } from "../services/sensorService";
+
+// import for preferences context, types and constants
 import { usePreferences } from "../context/preferences_context";
-import {COLORS, THRESHOLDS, FIREBASE_PATHS, SENSOR_COLORS, TIME_UNITS} from "../constants/theme";
+import {
+  COLORS,
+  THRESHOLDS,
+  FIREBASE_PATHS,
+  SENSOR_COLORS,
+  TIME_UNITS,
+} from "../constants/theme";
+import { PastReadings, TooltipState} from "../types/index";
 
 // defining the screen width for the chart, to make it responsive
 const screenWidth = Dimensions.get("window").width;
 
-interface PastReadings {
-  temperature_c: number;
-  humidity_percent: number;
-  light_lux: number;
-  soil_moisture_percent: number;
-  co2_ppm: number;
-  vpd_kpa: number;
-  timestamp: string;
-}
-
-// custom tooltip component for the charts
-interface TooltipState {
-  x: number;
-  y: number;
-  value: number;
-  visible: boolean;
-}
-
 export default function HistoryChartScreen() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // states for the active time filters and massive raw array
   const [timeRange, setTimeRange] = useState<"1H" | "24H" | "7D">("1H"); // default to 1 hour
@@ -66,7 +59,13 @@ export default function HistoryChartScreen() {
 
   // state to manage the visibility and content of the tooltips
   // we have one tooltip for each parameter we want to display
-  type TooltipKeys = 'temperature' | 'humidity' | 'light' | 'soil' | 'co2' | 'vpd';
+  type TooltipKeys =
+    | "temperature"
+    | "humidity"
+    | "light"
+    | "soil"
+    | "co2"
+    | "vpd";
   // default state for all tooltips
   const defaultTooltipState: TooltipState = {
     x: 0,
@@ -77,68 +76,69 @@ export default function HistoryChartScreen() {
 
   // initialiazing the tooltips state with default state for each parameter, we will update when the user clicks on a data point in the chart
   const [tooltips, setTooltips] = useState<Record<TooltipKeys, TooltipState>>({
-    temperature: {...defaultTooltipState},
-    humidity: {...defaultTooltipState},
-    light: {...defaultTooltipState},
-    soil: {...defaultTooltipState},
-    co2: {...defaultTooltipState},
-    vpd: {...defaultTooltipState},
+    temperature: { ...defaultTooltipState },
+    humidity: { ...defaultTooltipState },
+    light: { ...defaultTooltipState },
+    soil: { ...defaultTooltipState },
+    co2: { ...defaultTooltipState },
+    vpd: { ...defaultTooltipState },
   });
 
   // helper function to hide all the tooltips
   const hideAllTooltips = () => {
-    setTooltips((prev) => 
-      Object.fromEntries(
-        // iterate thorugh all the tooltips and set their visible to false
-        // Object.entries returns an array of [k, v] pairs, so we can map through it and update the visible propery for each tooltip
-        (Object.entries(prev) as [TooltipKeys, TooltipState][]).map(
-          ([key, state]) => [key, {...state, visible: false}]
-        )
-      ) as Record<TooltipKeys, TooltipState>
+    setTooltips(
+      (prev) =>
+        Object.fromEntries(
+          // iterate thorugh all the tooltips and set their visible to false
+          // Object.entries returns an array of [k, v] pairs, so we can map through it and update the visible propery for each tooltip
+          (Object.entries(prev) as [TooltipKeys, TooltipState][]).map(
+            ([key, state]) => [key, { ...state, visible: false }],
+          ),
+        ) as Record<TooltipKeys, TooltipState>,
     );
   };
 
   // helper function to set a specific tooltip as active and hide the others
-  const setActiveTooltip = (key: TooltipKeys, data: {x: number, y: number, value: number}) => {
+  const setActiveTooltip = (
+    key: TooltipKeys,
+    data: { x: number; y: number; value: number },
+  ) => {
     // we set the clicked tooltip as visible
     setTooltips((prev) => {
-      const updatedTooltip = {...prev};
+      const updatedTooltip = { ...prev };
 
       // set the active tooltip
-      updatedTooltip[key] = {x: data.x, y: data.y, value: data.value, visible: true};
+      updatedTooltip[key] = {
+        x: data.x,
+        y: data.y,
+        value: data.value,
+        visible: true,
+      };
       // hide other tooltips
-      (Object.keys(updatedTooltip) as TooltipKeys[]).filter((k) => k !== key).forEach((k) => {
-        updatedTooltip[k] = {...updatedTooltip[k], visible: false};
-      });
+      (Object.keys(updatedTooltip) as TooltipKeys[])
+        .filter((k) => k !== key)
+        .forEach((k) => {
+          updatedTooltip[k] = { ...updatedTooltip[k], visible: false };
+        });
       return updatedTooltip;
     });
   };
 
-  // fetching the historical data from Firebase 
+  // fetching the historical data from Firebase
   useEffect(() => {
     //creating a query to fetch the last 250 readings from the Firebase, so we have enough for 7 days of data readings
-    const historyRef = query(
-      ref(db, FIREBASE_PATHS.PAST_READINGS),
-      limitToLast(THRESHOLDS.MAX_HISTORICAL_READINGS),
-    );
-
-    const unsubscribe = onValue(
-      historyRef,
-      (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          // converting the data from an object to an array
-          const readingsArray: PastReadings[] = Object.values(
-            data,
-          ) as PastReadings[];
-          setRawReadings(readingsArray);
-        }
+    setLoading(true);
+    setError(null);
+    const unsubscribe = sensorService.subscribeToHistoricalData(
+      (data) => {
+        setRawReadings(data);
         setLoading(false);
-      },
+      }, 
       (error) => {
-        console.error("Error fetching historical data: ", error);
+        console.error("Historical data error: ", error);
+        setError("Failed to load historical data. Please try again later.");
         setLoading(false);
-      },
+      }
     );
 
     return () => unsubscribe();
@@ -310,13 +310,9 @@ export default function HistoryChartScreen() {
       setLoading(true);
 
       // fetching up to 1000 past readings to include in the CSV export
-      const dataRef = query(
-        ref(db, FIREBASE_PATHS.PAST_READINGS),
-        limitToLast(THRESHOLDS.MAX_EXPORT_READINGS),
-      );
-      const snapshot = await get(dataRef);
+      const exportData = await sensorService.fetchHistoricalData(THRESHOLDS.MAX_EXPORT_READINGS);
 
-      if (!snapshot.exists()) {
+      if (exportData.length === 0) {
         Alert.alert(
           "No data to export",
           "There are no historical readings available to export.",
@@ -330,9 +326,7 @@ export default function HistoryChartScreen() {
       let csvString = `Timestamp,Temperature (${tempCsvUnit}),Air Humidity (%),Light level (lux),Soil Humidity (%),CO2 (ppm),VPD (kPa)\n`;
 
       // iterating through the created snapshot to build the rows
-      snapshot.forEach((childSnapshot) => {
-        const row = childSnapshot.val();
-
+      exportData.forEach((row) => {
         // formatting the timestamp into a readable format; we create a fallback in case the timestamp is missing from the Firebase or invalid
         const dateStr = row.timestamp
           ? new Date(row.timestamp).toLocaleDateString() +
@@ -344,7 +338,7 @@ export default function HistoryChartScreen() {
         const exportTemp = isFahrenheit
           ? ((row.temperature_c * 9) / 5 + 32).toFixed(1)
           : row.temperature_c;
-        csvString += `${dateStr},${exportTemp},${row.humidity},${row.light_level},${row.soil_moisture_level},${row.co2_ppm},${row.vpd}\n`;
+        csvString += `${dateStr},${exportTemp},${row.humidity_percent},${row.light_lux},${row.soil_moisture_percent},${row.co2_ppm},${row.vpd_kpa}\n`;
       });
 
       // defining the file path for the CSV file

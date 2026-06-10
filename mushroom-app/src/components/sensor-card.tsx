@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Colors } from "../context/preferences_context";
+import { LIGHT_THEME, DARK_THEME, Theme} from "../constants/theme";
 
 export interface SensorCardProps {
   title: string;
@@ -9,7 +9,7 @@ export interface SensorCardProps {
   unit: string;
   iconName: string;
   iconColor: string;
-  theme?: typeof Colors.light;
+  theme?: Theme;
 }
 
 export const SensorCard = ({
@@ -20,7 +20,7 @@ export const SensorCard = ({
   iconColor,
   theme,
 }: SensorCardProps) => {
-  const defaultTheme = theme || Colors.light;
+  const defaultTheme = theme || LIGHT_THEME; // fallback to light theme if no theme is provided
   
   return (
     <View style={[styles.card, { backgroundColor: defaultTheme.card }]}>

@@ -15,12 +15,17 @@ import { SensorCard } from "../components/sensor-card";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { db } from "../config/firebaseConfig";
 
-// import for preferences context
+// import sensor service
+import { sensorService} from "../services/sensorService";
+
+// import for preferences context, constants and types
 import { usePreferences } from "../context/preferences_context";
 import {COLORS, THRESHOLDS, FIREBASE_PATHS, SENSOR_COLORS} from "../constants/theme";
+import {SensorData} from "../types/index";
 
 export default function LiveDataScreen() {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const { isFahrenheit, isDarkMode, theme } = usePreferences(); // getting the user's temperature unit preference and theme from the context
@@ -29,13 +34,13 @@ export default function LiveDataScreen() {
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  const [sensorData, setSensorData] = useState({
-    temperature_c: "--",
-    humidity_percent: "--",
-    light_lux: "--",
-    soil_moisture_percent: "--",
-    co2_ppm: "--",
-    vpd_kpa: "--",
+  const [sensorData, setSensorData] = useState<SensorData>({
+    temperature_c: 0,
+    humidity_percent: 0,
+    light_lux: 0,
+    soil_moisture_percent: 0,
+    co2_ppm: 0,
+    vpd_kpa: 0,
   });
 
   // effect to update the current time every 10 seconds so "last updated" can be calculated in real-time
@@ -48,50 +53,29 @@ export default function LiveDataScreen() {
 
   // fetching sensor data from Firebase Realtime Database
   useEffect(() => {
-    const sensorRef = ref(db, FIREBASE_PATHS.CURRENT_READINGS); // current_readings is the root node where sensor data is stored
-
+    setLoading(true);
+    setError(null);
     // listen for real-time updates
-    const unsubscribe = onValue(
-      sensorRef,
-      (snapshot) => {
-        const data = snapshot.val();
-
-        if (data) {
-          setSensorData({
-            temperature_c: data.temperature_c?.toFixed(1) || "--",
-            humidity_percent: data.humidity_percent?.toFixed(1) || "--",
-            light_lux: data.light_lux?.toFixed(1) || "--",
-            soil_moisture_percent:
-              data.soil_moisture_percent?.toFixed(1) || "--",
-            co2_ppm: data.co2_ppm?.toFixed(0) || "--",
-            vpd_kpa: data.vpd_kpa?.toFixed(2) || "--",
-          });
-
-          // capture the timestamp from the Pi - fallback to current time if missing
-          setLastUpdated(data.last_updated || Date.now());
-        }
+    const unsubscribe = sensorService.subscribeToLiveData(
+      (data) => {
+        setSensorData(data);
+        setLastUpdated(data.last_updated || null);
         setLoading(false);
-      },
+      }, 
       (error) => {
-        console.error("Error fetching sensor data: ", error);
+        console.error("Sensor data error: ", error);
+        setError("Failed to load sensor data. Please try again later.");
         setLoading(false);
-      },
+      }
     );
-
     // cleanup function to unsubscribe from listener when component unmounts
     return () => unsubscribe();
   }, []);
 
   // converting temperature to fahrenheit if the user preference is set to fahrenheit
-  let displayTemp = sensorData.temperature_c;
-  let tempUnit = "°C";
-  if (sensorData.temperature_c !== "--") {
-    const rawTempC = parseFloat(sensorData.temperature_c);
-    if (isFahrenheit) {
-      displayTemp = ((rawTempC * 9) / 5 + 32).toFixed(1);
-      tempUnit = "°F";
-    }
-  }
+  const displayTemp = sensorData.temperature_c ? isFahrenheit ? ((sensorData.temperature_c * 9) / 5 + 32).toFixed(1) : sensorData.temperature_c.toFixed(1) : "--";
+
+  const tempUnit = isFahrenheit ? "°F" : "°C";
 
   // system status calculation logic
   // check if the difference between now and the last updated timestamp is greater than 5 minutes (300000 ms)
@@ -191,7 +175,7 @@ export default function LiveDataScreen() {
             {/* rendering sensor cards with sensor data */}
             <SensorCard
               title="VPD Level"
-              value={sensorData.vpd_kpa}
+              value={sensorData.vpd_kpa.toFixed(2) || "--"}
               unit="kPa"
               iconName="chart-line-variant"
               iconColor={SENSOR_COLORS.vpd}
@@ -207,7 +191,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Air Humidity"
-              value={sensorData.humidity_percent}
+              value={sensorData.humidity_percent?.toFixed(1) || "--"}
               unit="%"
               iconName="air-humidifier"
               iconColor={SENSOR_COLORS.humidity}
@@ -215,7 +199,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Light"
-              value={sensorData.light_lux}
+              value={sensorData.light_lux?.toFixed(1) || "--"}
               unit="lx"
               iconName="lightbulb"
               iconColor={SENSOR_COLORS.light}
@@ -223,7 +207,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="Soil Moisture"
-              value={sensorData.soil_moisture_percent}
+              value={sensorData.soil_moisture_percent?.toFixed(1) || "--"}
               unit="%"
               iconName="water-percent"
               iconColor={SENSOR_COLORS.soil}
@@ -231,7 +215,7 @@ export default function LiveDataScreen() {
             />
             <SensorCard
               title="CO2 Level"
-              value={sensorData.co2_ppm}
+              value={sensorData.co2_ppm?.toFixed(1) || "--"}
               unit="ppm"
               iconName="molecule-co2"
               iconColor={SENSOR_COLORS.co2}
