@@ -61,7 +61,7 @@ function RootLayoutNav({user} : {user: User | null}) {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", nextAppState => {
       // if the app comes back to the foreground and the user is logged in, we want to trigger biometric authentication again
-      if(appState.current.match(/inactive|backgroun/) && nextAppState === "active") {
+      if(appState.current.match(/inactive|background/) && nextAppState === "active") {
         if (user) {
           setIsUnlocked(false); // lock the app when it goes to the background
           authenticateUser(); // trigger biometric authentication when the app comes back from the background

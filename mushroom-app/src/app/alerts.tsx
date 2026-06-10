@@ -64,6 +64,7 @@ export default function AlertsScreen() {
     const unsubscribe = alertService.subscribeToAlerts(
       (data) => {
         setAlerts(data);
+        setError(null);
         setLoading(false);
       },
       (error) => {
