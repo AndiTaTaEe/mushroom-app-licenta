@@ -152,6 +152,12 @@ export default function App() {
     router.push("/history_chart");
   };
 
+  const handleLiveCameraPress = () => {
+    console.log("Navigating to Live Camera screen...");
+    router.push("/live_camera");
+  };
+  
+//function to handle the button to Settings screen
   const handleSettingsPress = () => {
     console.log("Navigating to Settings screen...");
     router.push("/settings");
@@ -195,6 +201,23 @@ export default function App() {
           <View style={styles.buttonTextContainer}>
             <Text style={styles.buttonTitle}>Live Data</Text>
             <Text style={styles.buttonSubtitle}>Real-time sensor readings</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* live camera */}
+        <TouchableOpacity
+          style={[styles.button, {backgroundColor: "#8B5CF6"}]}
+          activeOpacity={0.8}
+          onPress={handleLiveCameraPress}
+        >
+          <MaterialCommunityIcons
+            name="cctv"
+            size={32}
+            color="#FFFFFF"
+          />
+          <View style={styles.buttonTextContainer}>
+            <Text style={styles.buttonTitle}>Live Camera</Text>
+            <Text style={styles.buttonSubtitle}>Real-time camera feed</Text>
           </View>
         </TouchableOpacity>
 

@@ -103,6 +103,7 @@ function RootLayoutNav({user} : {user: User | null}) {
         <Stack.Screen name="index" />
         <Stack.Screen name="live_data" />
         <Stack.Screen name="history_chart" />
+        <Stack.Screen name="live_camera" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="forgot_password" />
         <Stack.Screen name="settings" />
