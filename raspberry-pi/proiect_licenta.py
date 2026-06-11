@@ -212,11 +212,44 @@ def cloud_worker_task():
             telemetry_queue.task_done() # mark the task as done after processing
         except Exception as e:
             print(f"Error in cloud worker thread: {e}")
+
+# function to run the camera capture in a separate thread, captures an image every 5 seconds and updates the timestamp in firebase, used for the live view feature in the mobile app
+def camera_worker_task():
+    image_path = "/tmp/live_view.jpg"
+    while True:
+        try:
+            # command for capturing an image using 'fswebcam -r 1024x576 --no-banner /tmp/live_view.jpg'
+            cmd = [
+                "fswebcam",
+                "-r","1024x576",
+                "--skip", "2", # skip the first 2 frames to allow the camera to adjust
+                "--no-banner",
+                image_path
+            ]
+            # run the command with subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            if result.returncode != 0:
+                print(f"Camera capture failed: {result.stderr}")
+            else:
+                # after capturing the image, update the timestamp in firebase to notify the app that a new image is available for the live view
+                firebase_manager.root_ref.child("camera_status").set({
+                    "last_updated": int(time.time() * 1000) # store the timestamp in milliseconds
+                })
+        except Exception as e:
+            print(f"Error in camera worker thread: {e}")
+        time.sleep(5) # capture an image every 5 seconds
+
             
 # starting the cloud worker thread
 print("Starting cloud worker thread for Firebase upload and notifications...")
 cloud_thread = threading.Thread(target=cloud_worker_task, daemon=True)
 cloud_thread.start()
+
+# starting the camera thread
+print("Starting camera worker thread for live view capture...")
+camera_thread = threading.Thread(target=camera_worker_task, daemon=True)
+camera_thread.start()
 
 # main loop - runs on another thread, responsible for reading the sensors, displaying on OLED and sending data to the cloud worker thread
 while True:
