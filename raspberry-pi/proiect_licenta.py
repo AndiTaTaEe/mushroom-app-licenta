@@ -86,23 +86,21 @@ def calculate_vpd(temperature_c, air_humidity):
         print(f"Error calculating VPD: {e}")
         return None
     
-#helper function to override the speed of the active cooler fan, used for lowering the temperature
-def override_pi_fan(speed_level):
-    """
-    accepts an integer from 0 (off) to 4 (100% max speed)
-    """
+#helper function to read the internal rpi CPU temperature, used for monitoring the system health and detecting overheating issues
+def read_cpu_temp():
     try:
-        #cooling_device0 is the standard linux path for the Pi5 PWM fan
-        command = f"echo {speed_level} > /sys/class/thermal/cooling_device0/cur_state"
-        #subprocess to run the bash command with sudo privileges
-        subprocess.run(['sudo', 'sh', '-c', command], stdout = subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # linux stores the cpu temp in /sys/class/thermal/thermal_zone0/temp, in millidegrees celsius
+        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+            temp_millidegrees = int(f.read())
+            # convert to degrees celsius and round to 1 decimal
+            return round(temp_millidegrees / 1000.0, 1)
     except Exception as e:
-        print(f"Failed to override fan speed: {e}")
+        print(f"Error reading CPU temperature: {e}")
+        return None
 
 # cleanup function to handle exit signals
 def cleanup_and_exit(code=0):
     try:
-        override_pi_fan(0) # turn off the fan on exit
         dht22_sensor.exit()
     except Exception:
         pass
@@ -124,7 +122,13 @@ def trigger_alarm(sensor_type, title, message, alert_type):
     if is_new_alert:
         print(f"Sending push notification for {sensor_type} alert: {title}")
 
-        token = firebase_manager.get_push_token() # get the push token from firebase
+        raw_token = firebase_manager.get_push_token() # get the push token from firebase
+
+        # check if the token is a dictionary or a string, and extract the token accordingly
+        if isinstance(raw_token, dict):
+            token = raw_token.get("token") or raw_token.get("push_token") or list(raw_token.values())[0] # extract the token from the dictionary
+        else:
+            token = raw_token # if the token is a string, use it directly
 
         # if the token is available, send the push notification with a given title and message to the mobile app
         if token:
@@ -144,8 +148,11 @@ def trigger_alarm(sensor_type, title, message, alert_type):
 
             # send the POST req to the Expo push notification endpoint with the payload
             try:
-                requests.post(EXPO_PUSH_URL, headers=headers, json=payload, timeout=5)
-                print("Push notification sent successfully\n")
+                response = requests.post(EXPO_PUSH_URL, headers=headers, json=payload, timeout=5)
+                if response.status_code == 200:
+                    print(f"Push notification sent successfully for {sensor_type} alert! Expo response: {response.json()}")
+                else:
+                    print(f"Expo API Error {response.status_code}: {response.text}")
             except Exception as e:
                 print(f"Failed to send push notification: {e}")
         else:
@@ -263,6 +270,7 @@ while True:
         co2_ppm = None
         soil_moisture_level = None
         vpd_value = None
+        cpu_temp = read_cpu_temp() # read the internal CPU temperature for monitoring the system health
 
         #block to read temperature with error handling
         try:
@@ -307,6 +315,7 @@ while True:
                 'co2_ppm': co2_ppm,
                 'soil_moisture_percent': soil_moisture_level,
                 'vpd_kpa': vpd_value,
+                'cpu_temp_c': cpu_temp,
                 'timestamp': str(datetime.now()),
                 'last_updated': int(current_time * 1000) # store the timestamp in milliseconds
             }
@@ -328,15 +337,6 @@ while True:
 
         print(f"[HW-T] Temperature: {temperature_c:.1f}C, Humidity: {humidity:.1f}%, Light Level: {light_level:.1f} lx, CO2: {int(co2_ppm)} ppm, Soil Moisture: {soil_moisture_level:.1f}%, VPD: {vpd_value:.2f} kPa")
 
-        # fan actuator control logic based on temperature readings
-        if active_thresholds and temperature_c is not None:
-            max_temp = active_thresholds.get('temperature_c', {}).get("max", 30) # default max temp threshold is 30C if not available in firebase
-
-            if temperature_c >= max_temp:
-                print("Temperature exceeds max threshold, setting fan to max speed")
-                override_pi_fan(4) # set fan to max speed
-            elif temperature_c <= (max_temp - 1.0): # if temp is close to the max
-                override_pi_fan(0) # turn off the fan
 
     except Exception as error:
         print(f"Error in main loop: {error}")

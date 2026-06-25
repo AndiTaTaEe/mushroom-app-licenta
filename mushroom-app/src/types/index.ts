@@ -5,6 +5,7 @@ export interface SensorData {
     soil_moisture_percent: number;
     co2_ppm: number;
     vpd_kpa: number;
+    cpu_temp_c: number;
     last_updated?: number;
 }
 

@@ -171,6 +171,14 @@ export default function LiveDataScreen() {
               iconColor={SENSOR_COLORS.co2}
               theme={theme}
             />
+            <SensorCard
+              title="Pi CPU Temperature"
+              value={sensorData.cpu_temp_c?.toFixed(1) || "--"}
+              unit="°C"
+              iconName="raspberry-pi"
+              iconColor={COLORS.info}
+              theme={theme}
+            />
           </View>
       </ScrollView>
     </SafeAreaView>

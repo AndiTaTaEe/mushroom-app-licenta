@@ -9,6 +9,7 @@ export const DEFAULT_SENSOR_DATA: SensorData = {
   soil_moisture_percent: 0,
   co2_ppm: 0,
   vpd_kpa: 0,
+  cpu_temp_c: 0,
   last_updated: undefined,
 };
 
